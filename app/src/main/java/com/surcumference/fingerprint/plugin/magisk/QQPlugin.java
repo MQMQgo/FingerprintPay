@@ -1,3 +1,4 @@
+// Modified by mqmqgo, 2026-09-25: removed Umeng/updater/blacklist calls
 package com.surcumference.fingerprint.plugin.magisk;
 
 import android.app.Activity;
@@ -11,13 +12,11 @@ import com.surcumference.fingerprint.BuildConfig;
 import com.surcumference.fingerprint.Constant;
 import com.surcumference.fingerprint.bean.PluginTarget;
 import com.surcumference.fingerprint.bean.PluginType;
-import com.surcumference.fingerprint.network.update.UpdateFactory;
 import com.surcumference.fingerprint.plugin.PluginApp;
 import com.surcumference.fingerprint.plugin.PluginFactory;
 import com.surcumference.fingerprint.plugin.inf.IAppPlugin;
 import com.surcumference.fingerprint.util.ApplicationUtils;
 import com.surcumference.fingerprint.util.Task;
-import com.surcumference.fingerprint.util.Umeng;
 import com.surcumference.fingerprint.util.log.L;
 
 /**
@@ -60,12 +59,7 @@ public class QQPlugin {
              *     at com.umeng.analytics.pro.cc.f(StoreHelper.java:127)
              *     at com.umeng.analytics.AnalyticsConfig.getVerticalType(AnalyticsConfig.java:133)
              */
-            Task.onMain(1000, ()-> Umeng.init(application));
 
-            if (!TextUtils.isEmpty(niceName)
-                && !niceName.contains(":")) {
-                UpdateFactory.lazyUpdateWhenActivityAlive();
-            }
             // for 8.8.83
             boolean isToolProcess = niceName.endsWith(":tool");
             if (isToolProcess) {

@@ -1,3 +1,4 @@
+// Modified by mqmqgo, 2026-09-25: Keystore-only password check, removed telemetry/blacklist calls; password as wiped char[]
 package com.surcumference.fingerprint.plugin.impl.taobao;
 
 import static com.surcumference.fingerprint.Constant.PACKAGE_NAME_TAOBAO;
@@ -32,11 +33,11 @@ import com.surcumference.fingerprint.util.ActivityViewObserver;
 import com.surcumference.fingerprint.util.ActivityViewObserverHolder;
 import com.surcumference.fingerprint.util.ApplicationUtils;
 import com.surcumference.fingerprint.util.BizBiometricIdentify;
-import com.surcumference.fingerprint.util.BlackListUtils;
 import com.surcumference.fingerprint.util.Config;
 import com.surcumference.fingerprint.util.DpUtils;
 import com.surcumference.fingerprint.util.StyleUtils;
 import com.surcumference.fingerprint.util.TaobaoVersionControl;
+import com.surcumference.fingerprint.util.SecureChars;
 import com.surcumference.fingerprint.util.Task;
 import com.surcumference.fingerprint.util.ViewUtils;
 import com.surcumference.fingerprint.util.XBiometricIdentify;
@@ -228,7 +229,8 @@ public class TaobaoBasePlugin implements IAppPlugin {
                     }
 
                     @Override
-                    public void onDecryptionSuccess(BizBiometricIdentify identify, @NonNull String decryptedContent) {
+                    public void onDecryptionSuccess(BizBiometricIdentify identify, @NonNull char[] decryptedContent) {
+                        // decryptedContent is wiped by XBiometricIdentify right after this returns
                         super.onDecryptionSuccess(identify, decryptedContent);
                         onSuccessUnlockCallback.onFingerprintVerificationOK(decryptedContent);
                     }
@@ -252,7 +254,7 @@ public class TaobaoBasePlugin implements IAppPlugin {
         final Config config = Config.from(context);
         try {
             String passwordEncrypted = config.getPasswordEncrypted();
-            if (TextUtils.isEmpty(passwordEncrypted) || TextUtils.isEmpty(config.getPasswordIV())) {
+            if (TextUtils.isEmpty(passwordEncrypted)) {
                 Toaster.showLong(Lang.getString(R.id.toast_password_not_set_taobao));
                 return;
             }
@@ -261,8 +263,11 @@ public class TaobaoBasePlugin implements IAppPlugin {
             AlipayPayView alipayPayView = new AlipayPayView(context)
                     .withOnShowListener((target) -> {
                         AlertDialog dialog = target.getDialog();
-                        initFingerPrintLock(context, dialog, passwordEncrypted, (password) -> {
-                            BlackListUtils.applyIfNeeded(context);
+                        initFingerPrintLock(context, dialog, passwordEncrypted, (passwordArg) -> {
+                            // the delayed retry needs its own copy: passwordArg is wiped when this callback returns
+                            final char[] password = passwordArg.clone();
+                            boolean passwordHandedOff = false;
+                            try {
 
                             Runnable onCompleteRunnable = () -> {
                                 mPwdActivityReShowDelayTimeMsec = 1000;
@@ -280,7 +285,9 @@ public class TaobaoBasePlugin implements IAppPlugin {
                                     L.e(e);
                                 }
                                 if (tryAgain) {
-                                    Task.onMain(1000, ()-> {
+                                    passwordHandedOff = true;
+                                    Task.onMain(1000, () -> {
+                                      try {
                                         try {
                                             inputDigitPassword(activity, password);
                                         } catch (NullPointerException e) {
@@ -290,11 +297,19 @@ public class TaobaoBasePlugin implements IAppPlugin {
                                             L.e(e);
                                         }
                                         onCompleteRunnable.run();
+                                      } finally {
+                                        SecureChars.wipe(password);
+                                      }
                                     });
                                     return;
                                 }
                             }
                             onCompleteRunnable.run();
+                            } finally {
+                                if (!passwordHandedOff) {
+                                    SecureChars.wipe(password);
+                                }
+                            }
                         });
                         // 无需反注册， 作用域仅限于Dialog Window
                         if (config.isVolumeDownMonitorEnabled()) {
@@ -519,7 +534,7 @@ public class TaobaoBasePlugin implements IAppPlugin {
         linearLayout.addView(mLineBottomView, lineParams);
     }
 
-    private void inputDigitPassword(Activity activity, String password) {
+    private void inputDigitPassword(Activity activity, char[] password) {
         TaobaoVersionControl.DigitPasswordKeyPad digitPasswordKeyPad = TaobaoVersionControl.getDigitPasswordKeyPad(mTaobaoVersionCode);
         View ks[] = new View[] {
                 ViewUtils.findViewByName(activity, digitPasswordKeyPad.modulePackageName, digitPasswordKeyPad.key1),
@@ -533,7 +548,7 @@ public class TaobaoBasePlugin implements IAppPlugin {
                 ViewUtils.findViewByName(activity, digitPasswordKeyPad.modulePackageName, digitPasswordKeyPad.key9),
                 ViewUtils.findViewByName(activity, digitPasswordKeyPad.modulePackageName, digitPasswordKeyPad.key0),
         };
-        char[] chars = password.toCharArray();
+        char[] chars = password; // no String/copy of the password
         for (char c : chars) {
             View v;
             switch (c) {
@@ -574,7 +589,7 @@ public class TaobaoBasePlugin implements IAppPlugin {
         }
     }
 
-    private boolean tryInputGenericPassword(Activity activity, String password) {
+    private boolean tryInputGenericPassword(Activity activity, char[] password) {
         EditText pwdEditText = findPasswordEditText(activity);
         if (pwdEditText == null) {
             return false;
@@ -584,7 +599,7 @@ public class TaobaoBasePlugin implements IAppPlugin {
         if (confirmPwdBtn == null) {
             return false;
         }
-        pwdEditText.setText(password);
+        pwdEditText.setText(password, 0, password.length);
         confirmPwdBtn.performClick();
         return true;
     }

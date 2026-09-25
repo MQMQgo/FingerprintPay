@@ -1,3 +1,4 @@
+// Modified by mqmqgo, 2026-09-25: removed donate/update/network strings, added key-invalidated strings
 package com.surcumference.fingerprint;
 
 import java.util.Locale;
@@ -32,69 +33,14 @@ public class Lang {
         switch (res) {
             case R.string.app_name:
                 return tr("指纹支付", "指纹支付", "Fingerprint Pay");
-            case R.id.settings_title_help_wechat:
-                return tr("微信指纹", "微信指纹", "WeChat fingerprint pay");
-            case R.id.settings_title_help_alipay:
-                return tr("支付宝指纹", "支付寶指纹", "Alipay fingerprint pay");
-            case R.id.settings_title_help_taobao:
-                return tr("淘宝指纹", "淘宝指纹", "Taobao fingerprint pay");
-            case R.id.settings_title_help_qq:
-                return tr("QQ指纹", "QQ指纹", "QQ fingerprint pay");
-            case R.id.settings_title_help_unionpay:
-                return tr("云闪付指纹", "雲閃付指纹", "UnionPay fingerprint pay");
-            case R.id.settings_title_qq_group:
-                return tr("QQ交流群", "QQ交流群", "QQ Group");
-            case R.id.settings_title_help_faq:
-                return tr("常见问题", "常見問題", "FAQ");
             case R.id.settings_title_license:
                 return tr("许可协议", "許可協議", "License");
-            case R.id.settings_title_checkupdate:
-                return tr("检查更新", "檢查更新", "Check for update");
-            case R.id.settings_title_webside:
-                return tr("项目主页", "項目主頁", "Project homepage");
             case R.id.settings_title_version:
                 return tr("当前版本", "当前版本", "Version");
-            case R.id.settings_sub_title_help_wechat:
-                return tr("查看使用教程", "查看使用教程", "Tutorial");
-            case R.id.settings_sub_title_help_alipay:
-                return tr("查看使用教程", "查看使用教程", "Tutorial");
-            case R.id.settings_sub_title_help_taobao:
-                return tr("查看使用教程", "查看使用教程", "Tutorial");
-            case R.id.settings_sub_title_help_qq:
-                return tr("查看使用教程", "查看使用教程", "Tutorial");
-            case R.id.settings_sub_title_help_unionpay:
-                return tr("查看使用教程", "查看使用教程", "Tutorial");
-            case R.id.settings_sub_title_qq_group:
-                return tr("665167891", "665167891", "665167891");
-            case R.id.settings_sub_title_help_faq:
-                return tr("出现问题请看这里", "出現問題請看這裏", "Having a problem?");
             case R.id.settings_sub_title_license:
                 return tr("查看许可协议", "查看許可協議", "Check the License Agreement");
-            case R.id.settings_sub_title_checkupdate:
-                return tr("点击检查软件更新", "點擊檢查软件更新", "Press to begin");
-            case R.id.settings_sub_title_webside:
-                return tr("访问項目主页", "訪問項目主頁", "Home page");
-            case R.id.found_new_version:
-                return tr("发现新版本", "發現新版本 ", "New version: ");
-            case R.id.skip_this_version:
-                return tr("跳过这个版本", "跳過這個版本 ", "Skip");
             case R.id.cancel:
                 return tr("取消", "取消", "Cancel");
-            case R.id.goto_update_page:
-                return tr("前往更新页", "前往更新頁 ", "Update page");
-            case R.id.goto_update_page_mirror:
-                return tr("(国内镜像)", "(國內鏡像) ", "(Mirror)");
-            case R.id.update_now:
-                return tr("立即更新", "立即更新 ", "UPDATE");
-            case R.id.update_success_note:
-                return tr("安装更新成功, 请重启手机使插件生效", "安裝更新成功, 請重啟手機使插件生效",
-                        "Update Successfully, please restart the phone to enable the plug-in");
-            case R.id.downloading:
-                return tr("下载中", "下載中", "Downloading");
-            case R.id.download_title_failed:
-                return tr("下载出错", "下載出錯", "Download failed");
-            case R.id.download_complete_file_size_miss_match:
-                return tr("文件大小不匹配, 当前 %d, 应为 %d", "文件大小不匹配, 當前 %d, 應為 %d", "File size miss match, got %d, expected %d");
             case R.id.ok:
                 return tr("确定", "确定", "OK");
             case R.id.settings_title_taobao:
@@ -115,12 +61,8 @@ public class Lang {
                 return tr("支付密码", "支付密碼", "Payment Password");
             case R.id.settings_title_no_fingerprint_icon:
                 return tr("显示指纹图标", "顯示指紋圖標", "Fingerprint Icon");
-            case R.id.settings_title_donate:
-                return tr("赞助我", "贊助我", "Donate me");
             case R.id.settings_title_advance:
                 return tr("通用设置", "一般选项", "General");
-            case R.id.settings_title_use_biometric_api:
-                return tr("使用 Biometric Api", "使用 Biometric Api", "Use Biometric Api");
             case R.id.settings_title_volume_down_fingerprint_temporary_disable:
                 return tr("音量\uD83D\uDC47切换密码输入", "音量\uD83D\uDC47禁用切換密碼輸入", "Vol- for password input");
             case R.id.settings_title_start_logcat:
@@ -145,14 +87,8 @@ public class Lang {
                 return tr("请输入QQ的支付密码, 密码会加密后保存, 请放心", "請輸入QQ的支付密碼, 密碼會加密后保存, 請放心", "Please enter your Payment password");
             case R.id.settings_sub_title_password_unionpay:
                 return tr("请输入云闪付的支付密码, 密码会加密后保存, 请放心", "請輸入雲閃付的支付密碼, 密碼會加密后保存, 請放心", "Please enter your Payment password");
-            case R.id.settings_sub_title_donate:
-                return tr("如果您觉得本软件好用, 欢迎赞助, 多少都是心意", "如果您覺得本軟件好用, 歡迎贊助, 多少都是心意", "Donate me, If you like this project");
             case R.id.settings_sub_title_advance:
-                return tr("指纹图标、Biometric Api...", "指紋圖標、Biometric Api...", "Fingerprint icon, Biometric API...");
-            case R.id.settings_sub_title_update_modules_same_time:
-                return tr("将同时升级以下模块", "將同時升級以下模塊", "The following modules will be upgraded at the same time");
-            case R.id.settings_sub_title_use_biometric_api:
-                return tr("实验性, 仅 Android 9+ 可用", "實驗性, 僅 Android 9+ 可用", "Experimental, available only on Android 9+");
+                return tr("指纹图标、音量键临时禁用、日志...", "指紋圖標、音量鍵臨時禁用、日誌...", "Fingerprint icon, volume key disable, logs...");
             case R.id.settings_sub_title_volume_down_fingerprint_temporary_disable:
                 return tr("按下按键会临时禁用指纹支付1分钟(仅应用内认证有效)", "按下按鍵會臨時禁用指紋支付1分鐘(僅應用內認證有效)", "Pressing the button will temporarily disable fingerprint payment for 1 minute (only valid for in-app authentication)");
             case R.id.settings_sub_title_start_logcat:
@@ -185,27 +121,7 @@ public class Lang {
                 return tr("不同意", "不同意", "Disagree");
             case R.id.agree:
                 return tr("同意", "同意", "I agree");
-            case R.id.update_time:
-                return tr("更新日期", "更新日期", "Update time");
-            case R.id.update_no_root:
-                return tr("当前应用未获取到ROOT权限, 无法进行自动更新, 请前往更新页面手动获取更新", "當前應用未獲取到ROOT權限, 無法進行自動更新, 請前往更新頁面手動獲取更新", "Update failed, the current application cannot obtain root permission, please go to update page to manually obtain the updates");
-            case R.id.update_at_least_select_one:
-                return tr("请至少少选择一项", "請至少少選擇一項", "Please select at least one item");
-            case R.id.update_file_corrupted:
-                return tr("文件损坏了, 请重试", "文件損壞了, 請重試", "File is corrupted, please try again");
-            case R.id.update_file_missing:
-                return tr("更新文件丢失, 请前往更新页面手动获取更新", "更新文件丟失, 請前往更新頁面手動獲取更新", "Update file is missing, please go to update page to manually obtain the updates");
-            case R.id.update_installation_failed:
-                return tr("更新安装失败, 错误码:", "更新安裝失敗, 錯誤碼:", "Update installation failed, error code:");
 
-            case R.id.toast_give_me_star:
-                return tr("如果您拥有Github账户, 别忘了给我的项目+个Star噢", "如果您擁有Github賬戶, 別忘了給我的項目+個Star噢", "Give me a star, if you like this project");
-            case R.id.toast_checking_update:
-                return tr("正在检查更新", "正在檢查更新", "Checking");
-            case R.id.toast_no_update:
-                return tr("已经是最新版本了", "暫無更新", "You already have the latest version");
-            case R.id.toast_check_update_fail_net_err:
-                return tr("网络错误, 检查更新失败", "網絡錯誤, 檢查更新失敗", "Network error");
             case R.id.toast_fingerprint_not_match:
                 return tr("指纹识别失败", "指紋識別失敗", "Fingerprint NOT MATCH");
             case R.id.toast_fingerprint_retry_ended:
@@ -216,6 +132,12 @@ public class Lang {
                 return tr("系统指纹功能未启用", "系統指紋功能未啟用", "Fingerprint verification has been closed by system");
             case R.id.toast_fingerprint_password_enc_success:
                 return tr("支付密码加密成功", "支付密碼加密成功", "Payment password encryption successful");
+            case R.id.toast_fingerprint_key_invalidated:
+                return tr("指纹信息已变更或密钥已失效, 已清除保存的支付密码, 请重新设置支付密码", "指紋信息已變更或密鑰已失效, 已清除保存的支付密碼, 請重新設置支付密碼", "Biometric enrollment changed or key invalidated. The saved payment password was cleared, please set it again");
+            case R.id.toast_fingerprint_not_supported:
+                return tr("当前系统版本不支持硬件密钥保护的指纹支付 (需要 Android 6.0+)", "當前系統版本不支持硬件密鑰保護的指紋支付 (需要 Android 6.0+)", "Hardware-backed fingerprint payment requires Android 6.0+");
+            case R.id.toast_fingerprint_password_enc_failed:
+                return tr("支付密码加密失败, 未保存", "支付密碼加密失敗, 未保存", "Payment password encryption failed, nothing was saved");
             case R.id.toast_fingerprint_password_dec_failed:
                 return tr("支付密码解密失败, 请重新设定支付密码", "支付密码解密失败, 请重新设定支付密码", "Decryption of payment password failed, please reset the payment password");
             case R.id.toast_fingerprint_operation_cancel:
@@ -236,20 +158,12 @@ public class Lang {
                 return tr("启用失败, 请先设定支付密码", "啟用失敗, 請先設定支付密碼", "Enabled failed, please set a payment password first");
             case R.id.toast_password_auto_enter_fail:
                 return tr("Oops.. 输入失败了. 请手动输入密码", "Oops.. 輸入失敗了. 請手動輸入密碼", "Oops... auto input failure, switch to manual input");
-            case R.id.toast_goto_donate_page_fail_alipay:
-                return tr("调用支付宝捐赠页失败, 您可以手动转账捐赠哦, 账号: " + Constant.AUTHOR_ALIPAY, "調用支付寶捐贈頁失敗, 您可以手動轉賬捐贈哦, 帳號: " + Constant.AUTHOR_ALIPAY, "Can't jump to Alipay donate page, You can do it manually by transfer to account: " + Constant.AUTHOR_ALIPAY);
-            case R.id.toast_goto_donate_page_fail_wechat:
-                return tr("调用微信捐赠页失败, 您可以手动转账捐赠哦, 账号: " + Constant.AUTHOR_WECHAT, "調用微信捐贈頁失敗, 您可以手動轉賬捐贈哦, 帳號: " + Constant.AUTHOR_WECHAT, "Can't jump to WeChat donate page, You can do it manually by transfer to account: " + Constant.AUTHOR_WECHAT);
-            case R.id.toast_goto_donate_page_fail_qq:
-                return tr("调用QQ捐赠页失败, 您可以手动转账捐赠哦, 账号: " + Constant.AUTHOR_QQ, "調用QQ捐贈頁失敗, 您可以手動轉賬捐贈哦, 帳號: " + Constant.AUTHOR_QQ, "Can't jump to QQ donate page, You can do it manually by transfer to account: " + Constant.AUTHOR_QQ);
             case R.id.toast_need_qq_7_2_5:
                 return tr("您的QQ版本过低, 不支持指纹功能, 请升级至7.2.5以上的版本", "您的QQ版本過低, 不支持指紋功能, 請升級至7.2.5以上的版本", "Your QQ version is too low, does not support the fingerprint function, please upgrade to version 7.2.5 and above");
             case R.id.toast_start_logging:
                 return tr("请开始你的表演, 日志已开始记录\n日志路径: %s", "請開始你的表演, 日誌已開始記錄\n日誌路徑: %s", "Star logging\nlog path: %s");
             case R.id.toast_stop_logging:
                 return tr("表演结束, 请将日志文件分享给开发者\n日志路径: %s", "表演结束, 请将日志文件分享给开发者\n日誌路徑: %s", "Stop logging\nlog path: %s");
-            case R.id.toast_update_available:
-                return tr("请前往Magisk框架更新模块, 或进入Github(🪜)官网下载模块刷入", "請前往Magisk框架更新模組，或進入Github(🪜)官网下载模組刷入", "Please go to the Magisk framework to update the module, or visit the Github website to download and flash the module.");
             case R.id.message_version_not_supported:
                 return tr("当前应用版本%s(%s)与模块版本%s不兼容，请反馈问题\uD83D\uDC1B并使用兼容的模块版本", "當前應用版本%s(%s)與模塊版本%s不兼容，請反饋問題\uD83D\uDC1B並使用兼容的模塊版本", "The current application version %s(%s) is incompatible with module version %s. Please report this issue \uD83D\uDC1B and use a compatible module version.");
             case R.id.template:

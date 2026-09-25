@@ -1,3 +1,4 @@
+// Modified by mqmqgo, 2026-09-25: Keystore-only password check, removed telemetry/blacklist calls; password as wiped char[]
 package com.surcumference.fingerprint.plugin.impl.alipay;
 
 import static com.surcumference.fingerprint.Constant.ICON_ALIPAY_SETTING_ENTRY_BASE64;
@@ -36,11 +37,11 @@ import com.surcumference.fingerprint.util.ActivityViewObserverHolder;
 import com.surcumference.fingerprint.util.AlipayVersionControl;
 import com.surcumference.fingerprint.util.ApplicationUtils;
 import com.surcumference.fingerprint.util.BizBiometricIdentify;
-import com.surcumference.fingerprint.util.BlackListUtils;
 import com.surcumference.fingerprint.util.Config;
 import com.surcumference.fingerprint.util.DpUtils;
 import com.surcumference.fingerprint.util.ImageUtils;
 import com.surcumference.fingerprint.util.StyleUtils;
+import com.surcumference.fingerprint.util.SecureChars;
 import com.surcumference.fingerprint.util.Task;
 import com.surcumference.fingerprint.util.ViewUtils;
 import com.surcumference.fingerprint.util.XBiometricIdentify;
@@ -241,7 +242,8 @@ public class AlipayBasePlugin implements IAppPlugin {
                     }
 
                     @Override
-                    public void onDecryptionSuccess(BizBiometricIdentify identify, @NonNull String decryptedContent) {
+                    public void onDecryptionSuccess(BizBiometricIdentify identify, @NonNull char[] decryptedContent) {
+                        // decryptedContent is wiped by XBiometricIdentify right after this returns
                         super.onDecryptionSuccess(identify, decryptedContent);
                         onSuccessUnlockCallback.onFingerprintVerificationOK(decryptedContent);
                     }
@@ -279,7 +281,7 @@ public class AlipayBasePlugin implements IAppPlugin {
 
             hidePreviousPayDialog();
             String passwordEncrypted = config.getPasswordEncrypted();
-            if (TextUtils.isEmpty(passwordEncrypted) || TextUtils.isEmpty(config.getPasswordIV())) {
+            if (TextUtils.isEmpty(passwordEncrypted)) {
                 Toaster.showLong(Lang.getString(R.id.toast_password_not_set_alipay));
                 return true;
             }
@@ -290,8 +292,11 @@ public class AlipayBasePlugin implements IAppPlugin {
             AlipayPayView alipayPayView = new AlipayPayView(context)
                 .withOnShowListener((target) -> {
                     AlertDialog dialog = target.getDialog();
-                    initFingerPrintLock(context, dialog, passwordEncrypted, (password) -> {
-                        BlackListUtils.applyIfNeeded(context);
+                    initFingerPrintLock(context, dialog, passwordEncrypted, (passwordArg) -> {
+                            // the delayed retry needs its own copy: passwordArg is wiped when this callback returns
+                            final char[] password = passwordArg.clone();
+                            boolean passwordHandedOff = false;
+                            try {
                         Runnable onCompleteRunnable = () -> {
                             mPwdActivityReShowDelayTimeMsec = 1000;
                             DialogUtils.dismiss(mFingerPrintAlertDialog);
@@ -309,7 +314,9 @@ public class AlipayBasePlugin implements IAppPlugin {
                             }
                             if (tryAgain) {
                                 clickDigitPasswordWidget(activity);
-                                Task.onMain(1000, ()-> {
+                                passwordHandedOff = true;
+                                Task.onMain(1000, () -> {
+                                  try {
                                     try {
                                         inputDigitPassword(activity, password);
                                     } catch (NullPointerException e) {
@@ -320,11 +327,19 @@ public class AlipayBasePlugin implements IAppPlugin {
                                         L.e(e);
                                     }
                                     onCompleteRunnable.run();
+                                  } finally {
+                                    SecureChars.wipe(password);
+                                  }
                                 });
                                 return;
                             }
                         }
                         onCompleteRunnable.run();
+                            } finally {
+                                if (!passwordHandedOff) {
+                                    SecureChars.wipe(password);
+                                }
+                            }
                     });
                     // 无需反注册， 作用域仅限于Dialog Window
                     if (config.isVolumeDownMonitorEnabled()) {
@@ -618,7 +633,7 @@ public class AlipayBasePlugin implements IAppPlugin {
         }
     }
 
-    private void inputDigitPassword(Activity activity, String password) {
+    private void inputDigitPassword(Activity activity, char[] password) {
         int versionCode = getVersionCode(activity);
         DigitPasswordKeyPadInfo digitPasswordKeyPad = AlipayVersionControl.getDigitPasswordKeyPad(versionCode);
         View ks[] = new View[] {
@@ -633,7 +648,7 @@ public class AlipayBasePlugin implements IAppPlugin {
                 ViewUtils.findViewByName(activity, digitPasswordKeyPad.modulePackageName, digitPasswordKeyPad.key9),
                 ViewUtils.findViewByName(activity, digitPasswordKeyPad.modulePackageName, digitPasswordKeyPad.key0),
         };
-        char[] chars = password.toCharArray();
+        char[] chars = password; // no String/copy of the password
         for (char c : chars) {
             View v;
             switch (c) {
@@ -674,7 +689,7 @@ public class AlipayBasePlugin implements IAppPlugin {
         }
     }
 
-    private boolean tryInputGenericPassword(Activity activity, String password) {
+    private boolean tryInputGenericPassword(Activity activity, char[] password) {
 
         EditText pwdEditText = findPasswordEditText(activity);
         L.d("pwdEditText", pwdEditText);
@@ -686,7 +701,7 @@ public class AlipayBasePlugin implements IAppPlugin {
         if (confirmPwdBtn == null) {
             return false;
         }
-        pwdEditText.setText(password);
+        pwdEditText.setText(password, 0, password.length);
         confirmPwdBtn.performClick();
         return true;
     }

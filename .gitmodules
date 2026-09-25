@@ -1,6 +1,7 @@
+# Modified by mqmqgo, 2026-09-25: https submodule URLs, MQMQgo fork
 [submodule "3rdparty/MagiskModuleTemplate"]
 	path = 3rdparty/MagiskModuleTemplate
-	url = git@github.com:eritpchy/MagiskModuleTemplate.git
+	url = https://github.com/eritpchy/MagiskModuleTemplate.git
 [submodule "3rdparty/FingerprintIdentify"]
 	path = 3rdparty/FingerprintIdentify
-	url = git@github.com:eritpchy/FingerprintIdentify.git
+	url = https://github.com/MQMQgo/FingerprintIdentify.git

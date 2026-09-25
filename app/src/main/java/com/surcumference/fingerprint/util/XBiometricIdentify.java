@@ -1,43 +1,54 @@
+// Modified by mqmqgo, 2026-09-25: AES-256-GCM Keystore-only encrypt/decrypt, no software fallback, password only in wiped char[]/byte[]
 package com.surcumference.fingerprint.util;
 
 import android.content.Context;
+import android.os.Build;
+import android.util.Base64;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
-import com.hjq.toast.Toaster;
 import com.surcumference.fingerprint.Constant;
-import com.surcumference.fingerprint.Lang;
-import com.surcumference.fingerprint.R;
 import com.surcumference.fingerprint.plugin.inf.IMockCurrentUser;
 import com.surcumference.fingerprint.util.log.L;
 import com.wei.android.lib.fingerprintidentify.FingerprintIdentify;
 import com.wei.android.lib.fingerprintidentify.base.BaseFingerprint;
 import com.wei.android.lib.fingerprintidentify.bean.FingerprintIdentifyFailInfo;
-import com.wei.android.lib.fingerprintidentify.util.PasswordCipherHelper;
+import com.wei.android.lib.fingerprintidentify.util.CryptoObjectHelper;
 
+import java.util.Arrays;
+
+import javax.crypto.AEADBadTagException;
 import javax.crypto.Cipher;
 
+/**
+ * Hardened biometric identify:
+ * - the payment password is only ever encrypted / decrypted with an AES-256-GCM key that lives in the
+ *   hardware-backed Android Keystore and requires BIOMETRIC_STRONG authentication for every use;
+ * - storage format: Base64(IV[12] || ciphertext || tag[16]);
+ * - no software fallback: every failure is reported through {@link IdentifyListener#onFailed} so the
+ *   caller can restore the host app's native password input.
+ */
 public class XBiometricIdentify<T extends XBiometricIdentify>{
 
     private final Context context;
     private final FingerprintIdentify fingerprintIdentify;
-    private final ICryptoHandler cryptoHandler;
 
     private IMockCurrentUser mockCurrentUserCallback;
     public boolean fingerprintScanStateReady = false;
 
-    private String cipherFallbackKey;
-    private String cipherContent;
+    private int cipherMode = -1;
+    /** plain text (encrypt mode only): our own copy, wiped right after use or on any abort */
+    private char[] plainText;
+    /** ciphertext+tag (decrypt mode only) */
+    private byte[] cipherBytes;
+    private boolean invalidBlob;
 
-    public XBiometricIdentify(ICryptoHandler cryptoHandler, Context context) {
-        this.cryptoHandler = cryptoHandler;
+    public XBiometricIdentify(Context context) {
         this.context = context;
 
         fingerprintIdentify = new FingerprintIdentify(context);
         fingerprintIdentify.setMaxAvailableTimes(8);
-        fingerprintIdentify.setSupportAndroidL(true);
-        fingerprintIdentify.setUseBiometricApi(false);
         fingerprintIdentify.setExceptionListener(exception -> L.e("XBiometricIdentify", exception));
     }
 
@@ -46,157 +57,219 @@ public class XBiometricIdentify<T extends XBiometricIdentify>{
         return (T)this;
     }
 
-    public T withEncryptionMode(String cipherContent, String cipherFallbackKey) {
-        this.cipherContent = cipherContent;
-        this.cipherFallbackKey = cipherFallbackKey;
+    /**
+     * @param plainText password chars; a private copy is taken, the caller keeps ownership of
+     *                  (and must wipe) the passed array.
+     */
+    public T withEncryptionMode(@NonNull char[] plainText, @NonNull String keyAlias) {
+        this.cipherMode = Cipher.ENCRYPT_MODE;
+        wipePlainText();
+        this.plainText = plainText.clone();
+        this.cipherBytes = null;
+        this.invalidBlob = false;
+        fingerprintIdentify.setKeyAlias(keyAlias);
         fingerprintIdentify.setCipherMode(Cipher.ENCRYPT_MODE, null);
         return (T)this;
     }
 
-    public T withDecryptionMode(String cipherContent, byte[] cipherIV, String cipherFallbackKey) {
-        this.cipherContent = cipherContent;
-        this.cipherFallbackKey = cipherFallbackKey;
-        fingerprintIdentify.setCipherMode(Cipher.DECRYPT_MODE, cipherIV);
-        return (T)this;
-    }
-
-    public T withUseBiometricApi(boolean on) {
-        fingerprintIdentify.setUseBiometricApi(on);
+    public T withDecryptionMode(@Nullable String blobBase64, @Nullable String keyAlias) {
+        this.cipherMode = Cipher.DECRYPT_MODE;
+        wipePlainText();
+        this.cipherBytes = null;
+        this.invalidBlob = true;
+        byte[] iv = null;
+        try {
+            if (blobBase64 != null && keyAlias != null) {
+                byte[] blob = Base64.decode(blobBase64, Base64.NO_WRAP);
+                // IV + at least the 16 byte GCM tag
+                if (blob.length > CryptoObjectHelper.GCM_IV_LENGTH + CryptoObjectHelper.GCM_TAG_BITS / 8) {
+                    iv = Arrays.copyOfRange(blob, 0, CryptoObjectHelper.GCM_IV_LENGTH);
+                    this.cipherBytes = Arrays.copyOfRange(blob, CryptoObjectHelper.GCM_IV_LENGTH, blob.length);
+                    this.invalidBlob = false;
+                }
+            }
+        } catch (Exception e) {
+            L.e("XBiometricIdentify: invalid stored blob", e.getClass().getName());
+        }
+        fingerprintIdentify.setKeyAlias(keyAlias);
+        fingerprintIdentify.setCipherMode(Cipher.DECRYPT_MODE, iv);
         return (T)this;
     }
 
     public T startIdentify(IdentifyListener identifyListener) {
         XBiometricIdentifyManager xBiometricIdentifyManager =  XBiometricIdentifyManager.INSTANCE;
-        xBiometricIdentifyManager.cancelFingerprintIdentify();
-        xBiometricIdentifyManager.set(this);
-        int cipherMode = fingerprintIdentify.getCipherMode();
-        if (cipherMode == Cipher.ENCRYPT_MODE) {
-        } else if (cipherMode == Cipher.DECRYPT_MODE) {
-        } else {
-            throw new RuntimeException("Encrypt mode or decrypt mode not call");
-        }
-        callMockCurrentUserCallback(true);
-        fingerprintIdentify.init();
-        if (!fingerprintIdentify.isFingerprintEnable()) {
-            fingerprintScanStateReady = false;
-            callMockCurrentUserCallback(false);
-            if (Constant.PACKAGE_NAME_QQ.equals(context.getPackageName())) {
-                if (PermissionUtils.hasFingerprintPermission(context)) {
-                    L.d("系统指纹功能未启用");
-                    onNotify(NotifyEnum.OnBiometricNotEnable);
-                } else {
+        try {
+            xBiometricIdentifyManager.cancelFingerprintIdentify();
+            xBiometricIdentifyManager.set(this);
+            final int cipherMode = this.cipherMode;
+            if (cipherMode != Cipher.ENCRYPT_MODE && cipherMode != Cipher.DECRYPT_MODE) {
+                throw new IllegalStateException("Encrypt mode or decrypt mode not set");
+            }
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+                // No auth-bound Keystore keys before Android 6.0
+                xBiometricIdentifyManager.set(null);
+                onNotify(NotifyEnum.OnBiometricNotSupported);
+                wipePlainText();
+                identifyListener.onFailed(XBiometricIdentify.this, new FingerprintIdentifyFailInfo(false, -1, "unsupported api level"));
+                return (T)this;
+            }
+            if (cipherMode == Cipher.DECRYPT_MODE && invalidBlob) {
+                xBiometricIdentifyManager.set(null);
+                FingerprintIdentifyFailInfo failInfo = new FingerprintIdentifyFailInfo(false, -1, "invalid stored password");
+                failInfo.keyInvalidated = true;
+                onNotify(NotifyEnum.OnKeyInvalidated);
+                wipePlainText();
+                identifyListener.onFailed(XBiometricIdentify.this, failInfo);
+                return (T)this;
+            }
+            callMockCurrentUserCallback(true);
+            fingerprintIdentify.init();
+            if (!fingerprintIdentify.isFingerprintEnable()) {
+                fingerprintScanStateReady = false;
+                callMockCurrentUserCallback(false);
+                xBiometricIdentifyManager.set(null);
+                if (Constant.PACKAGE_NAME_QQ.equals(context.getPackageName())
+                        && !PermissionUtils.hasFingerprintPermission(context)) {
                     L.d("QQ 版本过低");
                     onNotify(NotifyEnum.OnQQVersionTooLow);
+                } else {
+                    L.d("系统指纹功能未启用");
+                    onNotify(NotifyEnum.OnBiometricNotEnable);
                 }
-            } else {
-                onNotify(NotifyEnum.OnBiometricNotEnable);
+                wipePlainText();
+                identifyListener.onFailed(XBiometricIdentify.this, new FingerprintIdentifyFailInfo(false, -1, "biometric not enabled"));
+                return (T)this;
             }
-            return (T)this;
-        }
-        identifyListener.onInited(XBiometricIdentify.this);
-        fingerprintScanStateReady = true;
-        fingerprintIdentify.startIdentify(new BaseFingerprint.IdentifyListener() {
-            @Override
-            public void onSucceed(@Nullable Cipher cipher) {
-                try {
+            identifyListener.onInited(XBiometricIdentify.this);
+            fingerprintScanStateReady = true;
+            fingerprintIdentify.startIdentify(new BaseFingerprint.IdentifyListener() {
+                @Override
+                public void onSucceed(@Nullable Cipher cipher) {
                     xBiometricIdentifyManager.set(null);
-                    String encryptedOrDecryptedContent = null;
-                    for (int i = 0; i < 2; i++) {
-                        if (cipher != null) {
-                            encryptedOrDecryptedContent = encryptionOrDecryption(cipherMode, cipher, cipherContent);
-                            if (encryptedOrDecryptedContent != null) {
-                                if (cipherMode == Cipher.ENCRYPT_MODE) {
-                                    identifyListener.onEncryptionSuccess(XBiometricIdentify.this, encryptedOrDecryptedContent, cipher.getIV());
-                                } else if (cipherMode == Cipher.DECRYPT_MODE) {
-                                    identifyListener.onDecryptionSuccess(XBiometricIdentify.this, encryptedOrDecryptedContent);
-                                }
-                                return;
+                    fingerprintScanStateReady = false;
+                    try {
+                        if (cipher == null) {
+                            throw new IllegalStateException("authenticated cipher missing");
+                        }
+                        if (cipherMode == Cipher.ENCRYPT_MODE) {
+                            char[] plain = plainText;
+                            wipePlainText();
+                            if (plain == null) {
+                                throw new IllegalStateException("nothing to encrypt");
+                            }
+                            byte[] ct;
+                            byte[] plainBytes = null;
+                            try {
+                                plainBytes = SecureChars.encodeUtf8(plain);
+                                ct = cipher.doFinal(plainBytes);
+                            } finally {
+                                SecureChars.wipe(plainBytes);
+                                SecureChars.wipe(plain);
+                            }
+                            byte[] iv = cipher.getIV();
+                            if (iv == null || iv.length != CryptoObjectHelper.GCM_IV_LENGTH) {
+                                throw new IllegalStateException("unexpected GCM IV length");
+                            }
+                            byte[] blob = new byte[iv.length + ct.length];
+                            System.arraycopy(iv, 0, blob, 0, iv.length);
+                            System.arraycopy(ct, 0, blob, iv.length, ct.length);
+                            identifyListener.onEncryptionSuccess(XBiometricIdentify.this, Base64.encodeToString(blob, Base64.NO_WRAP), iv);
+                        } else {
+                            // decrypt into a buffer we own, decode to char[] (never a String), wipe everything
+                            byte[] pt = new byte[cipher.getOutputSize(cipherBytes.length)];
+                            char[] decrypted = null;
+                            try {
+                                int n = cipher.doFinal(cipherBytes, 0, cipherBytes.length, pt, 0);
+                                decrypted = SecureChars.decodeUtf8(pt, 0, n);
+                                SecureChars.wipe(pt);
+                                // the array is only valid during this call; listeners needing it later must clone it
+                                identifyListener.onDecryptionSuccess(XBiometricIdentify.this, decrypted);
+                            } finally {
+                                SecureChars.wipe(pt);
+                                SecureChars.wipe(decrypted);
                             }
                         }
-                        cipher = PasswordCipherHelper.createCipher(cipherMode, cipherFallbackKey);
-                    }
-                    
-                    if (cipherMode == Cipher.DECRYPT_MODE) {
-                        Toaster.showShort(Lang.getString(R.id.toast_fingerprint_password_dec_failed));
-                        return;
-                    }
-
-                    throw new RuntimeException("Unable encryptionOrDecryption text: " + cipherContent);
-                } finally {
-                    callMockCurrentUserCallback(false);
-                }
-            }
-
-            @Override
-            public void onNotMatch(int availableTimes) {
-                L.d("指纹识别失败，还可尝试" + String.valueOf(availableTimes) + "次");
-                onNotify(NotifyEnum.OnBiometricNotMatch);
-                callMockCurrentUserCallback(false);
-                identifyListener.onNotMatch(XBiometricIdentify.this, availableTimes);
-            }
-
-            @Override
-            public void onFailed(FingerprintIdentifyFailInfo failInfo) {
-                try {
-                    xBiometricIdentifyManager.set(null);
-                    if (failInfo.throwable instanceof java.security.InvalidAlgorithmParameterException) {
-                        onNotify(NotifyEnum.OnDecryptionFailed);
+                    } catch (Throwable t) {
+                        // never log plaintext/ciphertext, only the exception type
+                        L.e("XBiometricIdentify: cipher operation failed", t.getClass().getName());
+                        FingerprintIdentifyFailInfo failInfo = new FingerprintIdentifyFailInfo(false, t);
+                        if (cipherMode == Cipher.DECRYPT_MODE && t instanceof AEADBadTagException) {
+                            // ciphertext does not belong to this key any more: discard it
+                            failInfo.keyInvalidated = true;
+                            onNotify(NotifyEnum.OnKeyInvalidated);
+                        } else {
+                            onNotify(cipherMode == Cipher.DECRYPT_MODE ? NotifyEnum.OnDecryptionFailed : NotifyEnum.OnEncryptionFailed);
+                        }
+                        wipePlainText();
                         identifyListener.onFailed(XBiometricIdentify.this, failInfo);
-                        return;
+                    } finally {
+                        callMockCurrentUserCallback(false);
                     }
-                    if (failInfo.isCancel()) {
-                        identifyListener.onFailed(XBiometricIdentify.this, failInfo);
-                        return;
-                    }
-                    if (fingerprintScanStateReady) {
-                        onNotify(NotifyEnum.OnBiometricRetryEnded, failInfo);
-                    }
-                    L.d("多次尝试错误，请确认指纹", failInfo);
-                    identifyListener.onFailed(XBiometricIdentify.this, failInfo);
-                } finally {
-                    callMockCurrentUserCallback(false);
                 }
-            }
 
-            @Override
-            public void onStartFailedByDeviceLocked() {
-                try {
-                    xBiometricIdentifyManager.set(null);
-                    // 第一次调用startIdentify失败，因为设备被暂时锁定
-                    L.d("系统限制，重启后必须验证密码后才能使用指纹验证");
-                    onNotify(NotifyEnum.OnBiometricLocked);
-                    identifyListener.onFailed(XBiometricIdentify.this, new FingerprintIdentifyFailInfo(true));
-                } finally {
+                @Override
+                public void onNotMatch(int availableTimes) {
+                    L.d("指纹识别失败，还可尝试" + String.valueOf(availableTimes) + "次");
+                    onNotify(NotifyEnum.OnBiometricNotMatch);
                     callMockCurrentUserCallback(false);
+                    identifyListener.onNotMatch(XBiometricIdentify.this, availableTimes);
                 }
-            }
-        });
+
+                @Override
+                public void onFailed(FingerprintIdentifyFailInfo failInfo) {
+                    try {
+                        xBiometricIdentifyManager.set(null);
+                        wipePlainText();
+                        if (failInfo.keyInvalidated) {
+                            onNotify(NotifyEnum.OnKeyInvalidated);
+                        } else if (!failInfo.isCancel()) {
+                            if (fingerprintScanStateReady) {
+                                onNotify(NotifyEnum.OnBiometricRetryEnded, failInfo.errString == null ? "" : failInfo.errString);
+                            }
+                            L.d("指纹验证失败", failInfo);
+                        }
+                        fingerprintScanStateReady = false;
+                        wipePlainText();
+                        identifyListener.onFailed(XBiometricIdentify.this, failInfo);
+                    } finally {
+                        callMockCurrentUserCallback(false);
+                    }
+                }
+
+                @Override
+                public void onStartFailedByDeviceLocked() {
+                    try {
+                        xBiometricIdentifyManager.set(null);
+                        fingerprintScanStateReady = false;
+                        // 第一次调用startIdentify失败，因为设备被暂时锁定
+                        L.d("系统限制，重启后必须验证密码后才能使用指纹验证");
+                        onNotify(NotifyEnum.OnBiometricLocked);
+                        wipePlainText();
+                        identifyListener.onFailed(XBiometricIdentify.this, new FingerprintIdentifyFailInfo(true));
+                    } finally {
+                        callMockCurrentUserCallback(false);
+                    }
+                }
+            });
+        } catch (Throwable t) {
+            L.e("XBiometricIdentify: startIdentify failed", t.getClass().getName());
+            fingerprintScanStateReady = false;
+            wipePlainText();
+            xBiometricIdentifyManager.set(null);
+            callMockCurrentUserCallback(false);
+            wipePlainText();
+            identifyListener.onFailed(XBiometricIdentify.this, new FingerprintIdentifyFailInfo(false, t));
+        }
         return (T)this;
     }
 
-    private String encryptionOrDecryption(int cipherMode, Cipher cipher, String cipherContent) {
-        try {
-            if (cipher != null) {
-                if (cipherMode == Cipher.ENCRYPT_MODE) {
-                    return cryptoHandler.encrypt(cipher, cipherContent);
-                } else if (cipherMode == Cipher.DECRYPT_MODE) {
-                    try {
-                        return cryptoHandler.decrypt(cipher, cipherContent);
-                    } catch (Exception e) {
-                        onNotify(NotifyEnum.OnDecryptionFailed);
-                        throw e;
-                    }
-                } else {
-                    throw new RuntimeException("Unsupported cipher mode: " + cipherMode);
-                }
-            }
-        } catch (Exception e) {
-            L.e(e);
-        }
-        return null;
+    private void wipePlainText() {
+        SecureChars.wipe(plainText);
+        plainText = null;
     }
 
     public void cancelIdentify() {
+        wipePlainText();
         fingerprintScanStateReady = false;
         fingerprintIdentify.cancelIdentify();
         callMockCurrentUserCallback(false);
@@ -243,7 +316,8 @@ public class XBiometricIdentify<T extends XBiometricIdentify>{
             }
         }
 
-        public void onDecryptionSuccess(T identify, @NonNull String decryptedContent) {
+        /** @param decryptedContent wiped by the caller as soon as this returns; clone it for async use */
+        public void onDecryptionSuccess(T identify, @NonNull char[] decryptedContent) {
             IdentifyListener<T> listener = this.parentIdentifyListener;
             if (listener != null) {
                 listener.onDecryptionSuccess(identify, decryptedContent);
@@ -279,13 +353,6 @@ public class XBiometricIdentify<T extends XBiometricIdentify>{
         }
     }
 
-    public interface ICryptoHandler {
-        @Nullable
-        String decrypt(@NonNull Cipher cipher, @NonNull String content);
-        @Nullable
-        String encrypt(@NonNull Cipher cipher, @NonNull String content);
-    }
-
     public enum NotifyEnum {
         OnBiometricNotEnable,
         OnQQVersionTooLow,
@@ -293,6 +360,9 @@ public class XBiometricIdentify<T extends XBiometricIdentify>{
         OnBiometricRetryEnded,
         OnBiometricLocked,
         OnBiometricNotMatch,
+        OnBiometricNotSupported,
+        OnKeyInvalidated,
+        OnEncryptionFailed,
     }
 
 }

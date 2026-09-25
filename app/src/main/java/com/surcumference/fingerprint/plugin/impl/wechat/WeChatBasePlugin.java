@@ -1,3 +1,4 @@
+// Modified by mqmqgo, 2026-09-25: fingerprint fallback to native password, re-entrancy guard, crash-safe pay flow, password only in wiped char[]
 package com.surcumference.fingerprint.plugin.impl.wechat;
 
 import static com.surcumference.fingerprint.Constant.PACKAGE_NAME_WECHAT;
@@ -13,6 +14,7 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
+import android.text.Editable;
 import android.text.TextUtils;
 import android.util.TypedValue;
 import android.view.*;
@@ -34,12 +36,12 @@ import com.surcumference.fingerprint.util.ActivityViewObserver;
 import com.surcumference.fingerprint.util.ActivityViewObserverHolder;
 import com.surcumference.fingerprint.util.ApplicationUtils;
 import com.surcumference.fingerprint.util.BizBiometricIdentify;
-import com.surcumference.fingerprint.util.BlackListUtils;
 import com.surcumference.fingerprint.util.Config;
 import com.surcumference.fingerprint.util.DpUtils;
 import com.surcumference.fingerprint.util.FragmentObserver;
 import com.surcumference.fingerprint.util.ImageUtils;
 import com.surcumference.fingerprint.util.NotifyUtils;
+import com.surcumference.fingerprint.util.SecureChars;
 import com.surcumference.fingerprint.util.StyleUtils;
 import com.surcumference.fingerprint.util.Task;
 import com.surcumference.fingerprint.util.ViewUtils;
@@ -81,6 +83,54 @@ public class WeChatBasePlugin implements IAppPlugin, IMockCurrentUser {
     private ViewGroup mKeyboardContainer;
     private final HashMap<Integer, Float> mSavedAlphaMap = new HashMap<>();
     private final HashMap<Integer, Boolean> mSavedClickableMap = new HashMap<>();
+    /** Incremented whenever an identify session is started or cancelled; stale callbacks are ignored. */
+    private int mIdentifySession = 0;
+    /** Password copy used by an in-flight (asynchronous) auto input; wiped on completion or abort. */
+    private PendingSecretInput mPendingSecretInput;
+
+    /**
+     * Holder for a password copy that must outlive the decrypt callback (posted/delayed key taps).
+     * Plaintext only ever lives in {@link #chars}; it is wiped with Arrays.fill on completion, abort,
+     * failure or dialog dismissal. Best effort only: ART may have copied the array before the wipe,
+     * and WeChat's own input widgets/buffers are outside our control.
+     */
+    private static final class PendingSecretInput {
+        char[] chars;
+        boolean finished;
+
+        PendingSecretInput(char[] source) {
+            this.chars = source.clone();
+        }
+
+        void wipe() {
+            finished = true;
+            SecureChars.wipe(chars);
+            chars = null;
+        }
+    }
+
+    private PendingSecretInput startPendingSecretInput(char[] password) {
+        abortPendingPasswordInput();
+        PendingSecretInput pending = new PendingSecretInput(password);
+        mPendingSecretInput = pending;
+        return pending;
+    }
+
+    private void finishPendingSecretInput(PendingSecretInput pending) {
+        pending.wipe();
+        if (mPendingSecretInput == pending) {
+            mPendingSecretInput = null;
+        }
+    }
+
+    /** Stops any in-flight auto input and wipes its password copy. */
+    private void abortPendingPasswordInput() {
+        PendingSecretInput pending = mPendingSecretInput;
+        mPendingSecretInput = null;
+        if (pending != null) {
+            pending.wipe();
+        }
+    }
 
     @Override
     public int getVersionCode(Context context) {
@@ -96,22 +146,78 @@ public class WeChatBasePlugin implements IAppPlugin, IMockCurrentUser {
                                                     OnFingerprintVerificationOKListener onSuccessUnlockCallback,
                                                     final Runnable onFailureUnlockCallback) {
         cancelFingerprintIdentify();
-        mFingerprintIdentify = new BizBiometricIdentify(context)
-                .withMockCurrentUserCallback(this)
-                .decryptPasscode(passwordEncrypted, new BizBiometricIdentify.IdentifyListener() {
+        final int session = ++mIdentifySession;
+        try {
+            BizBiometricIdentify identify = new BizBiometricIdentify(context)
+                    .withMockCurrentUserCallback(this);
+            // assign before starting: a synchronous onFailed must see this session as current
+            mFingerprintIdentify = identify;
+            identify.decryptPasscode(passwordEncrypted, new BizBiometricIdentify.IdentifyListener() {
 
-                    @Override
-                    public void onDecryptionSuccess(BizBiometricIdentify identify, @NonNull String decryptedContent) {
-                        super.onDecryptionSuccess(identify, decryptedContent);
-                        onSuccessUnlockCallback.onFingerprintVerificationOK(decryptedContent);
-                    }
+                        @Override
+                        public void onDecryptionSuccess(BizBiometricIdentify identify, @NonNull char[] decryptedContent) {
+                            // decryptedContent is wiped by XBiometricIdentify right after this returns
+                            super.onDecryptionSuccess(identify, decryptedContent);
+                            if (session != mIdentifySession) {
+                                L.d("ignore stale decryption result");
+                                return;
+                            }
+                            try {
+                                onSuccessUnlockCallback.onFingerprintVerificationOK(decryptedContent);
+                            } catch (Throwable t) {
+                                L.e("WeChat: auto input password failed", t.getClass().getName());
+                                Toaster.showLong(Lang.getString(R.id.toast_password_auto_enter_fail));
+                                runFallback(onFailureUnlockCallback);
+                            }
+                        }
 
-                    @Override
-                    public void onFailed(BizBiometricIdentify target, FingerprintIdentifyFailInfo failInfo) {
-                        super.onFailed(target, failInfo);
-                        onFailureUnlockCallback.run();
-                    }
-                });
+                        @Override
+                        public void onFailed(BizBiometricIdentify target, FingerprintIdentifyFailInfo failInfo) {
+                            super.onFailed(target, failInfo);
+                            if (session != mIdentifySession) {
+                                L.d("ignore stale identify failure");
+                                return;
+                            }
+                            runFallback(onFailureUnlockCallback);
+                        }
+                    });
+        } catch (Throwable t) {
+            L.e("WeChat: initFingerPrintLock failed", t.getClass().getName());
+            runFallback(onFailureUnlockCallback);
+        }
+    }
+
+    /** Runs a "restore WeChat native password input" runnable, never throwing. */
+    private static void runFallback(@Nullable Runnable fallback) {
+        if (fallback == null) {
+            return;
+        }
+        try {
+            fallback.run();
+        } catch (Throwable t) {
+            L.e("WeChat: fallback to password failed", t);
+        }
+    }
+
+    /**
+     * Wraps a fallback runnable with a re-entrancy guard, so cancel -> onFailed -> fallback
+     * chains can never recurse into themselves.
+     */
+    private static Runnable reentrancyGuarded(Runnable runnable) {
+        final boolean[] running = new boolean[]{false};
+        return () -> {
+            if (running[0]) {
+                return;
+            }
+            running[0] = true;
+            try {
+                runnable.run();
+            } catch (Throwable t) {
+                L.e("WeChat: switchToPassword failed", t);
+            } finally {
+                running[0] = false;
+            }
+        };
     }
 
     protected boolean isHeaderViewExistsFallback(ListView listView) {
@@ -158,6 +264,14 @@ public class WeChatBasePlugin implements IAppPlugin, IMockCurrentUser {
 
     @Override
     public void onActivityResumed(Activity activity) {
+        try {
+            onActivityResumedInternal(activity);
+        } catch (Throwable t) {
+            L.e("WeChat: onActivityResumed failed", t);
+        }
+    }
+
+    private void onActivityResumedInternal(Activity activity) {
         L.d("Activity onResume =", activity);
         final String activityClzName = activity.getClass().getName();
         if (activityClzName.contains("com.tencent.mm.plugin.setting.ui.setting.SettingsUI")
@@ -333,6 +447,44 @@ public class WeChatBasePlugin implements IAppPlugin, IMockCurrentUser {
      * Matches module m1797: handle pay dialog via keyboard key detection.
      */
     protected void onPayDialogShownByKeyboard(Activity activity, ViewGroup rootView, View keyboardKeyView) {
+        try {
+            onPayDialogShownByKeyboardInternal(activity, rootView, keyboardKeyView);
+        } catch (Throwable t) {
+            L.e("WeChat: onPayDialogShownByKeyboard failed, restoring native keyboard", t);
+            restoreKeyboardModeViews(rootView);
+        }
+    }
+
+    /** Generic LiteApp keyboard cleanup: removes every overlay and restores WeChat's own keyboard. */
+    private void restoreKeyboardModeViews(@Nullable ViewGroup rootView) {
+        abortPendingPasswordInput();
+        try {
+            mIdentifySession++;
+            XBiometricIdentify identify = mFingerprintIdentify;
+            mFingerprintIdentify = null;
+            if (identify != null) {
+                identify.cancelIdentify();
+            }
+        } catch (Throwable t) {
+            L.e(t);
+        }
+        try {
+            if (rootView != null) {
+                removeFingerprintCover(rootView);
+                View kbCover = rootView.findViewWithTag("keyboardCoverLayout");
+                if (kbCover != null) {
+                    ViewUtils.removeFromSuperView(kbCover);
+                }
+            }
+            restoreKeyboardContainerHeight(mKeyboardContainer);
+            restoreChildViewStates(mKeyboardPasswordLayout, true, mSavedAlphaMap, mSavedClickableMap);
+        } catch (Throwable t) {
+            L.e(t);
+        }
+        mMockCurrentUser = false;
+    }
+
+    private void onPayDialogShownByKeyboardInternal(Activity activity, ViewGroup rootView, View keyboardKeyView) {
         Context context = rootView.getContext();
         Config config = Config.from(context);
         if (!config.isOn()) {
@@ -340,7 +492,7 @@ public class WeChatBasePlugin implements IAppPlugin, IMockCurrentUser {
         }
         int versionCode = getVersionCode(context);
         String passwordEncrypted = config.getPasswordEncrypted();
-        if (TextUtils.isEmpty(passwordEncrypted) || TextUtils.isEmpty(config.getPasswordIV())) {
+        if (TextUtils.isEmpty(passwordEncrypted)) {
             NotifyUtils.notifyBiometricIdentify(context, Lang.getString(R.id.toast_password_not_set_wechat));
             return;
         }
@@ -410,7 +562,13 @@ public class WeChatBasePlugin implements IAppPlugin, IMockCurrentUser {
         // switchToPassword runnable - matches module RunnableC0084 case 3
         final ViewGroup finalPasswordLayout = passwordLayout;
         final ViewGroup finalKeyboardContainer = keyboardContainer;
-        final Runnable switchToPasswordRunnable = () -> {
+        final Runnable switchToPasswordRunnable = reentrancyGuarded(() -> {
+            abortPendingPasswordInput();
+            try {
+                cancelFingerprintIdentify();
+            } catch (Throwable t) {
+                L.e(t);
+            }
             removeFingerprintCover(rootView);
             View kbCover = rootView.findViewWithTag("keyboardCoverLayout");
             if (kbCover != null) {
@@ -418,9 +576,8 @@ public class WeChatBasePlugin implements IAppPlugin, IMockCurrentUser {
             }
             restoreKeyboardContainerHeight(finalKeyboardContainer);
             restoreChildViewStates(finalPasswordLayout, true, mSavedAlphaMap, mSavedClickableMap);
-            cancelFingerprintIdentify();
             mMockCurrentUser = false;
-        };
+        });
 
         // The run() block - matches module's inline Runnable that's called via runnable.run()
         if (mFingerprintIdentifyTemporaryBlocking) {
@@ -459,19 +616,17 @@ public class WeChatBasePlugin implements IAppPlugin, IMockCurrentUser {
 
         // Start fingerprint - matches module m1795 + inline callback
         initFingerPrintLock(context, config, false, passwordEncrypted, (password) -> {
-            BlackListUtils.applyIfNeeded(context);
             // Restore clickable only (not alpha) so touch events work
             restoreChildViewStates(finalPasswordLayout, false, mSavedAlphaMap, mSavedClickableMap);
             try {
-                inputDigitalPasswordByTouch(context, finalPasswordLayout, password, versionCode);
-            } catch (NullPointerException e) {
+                inputDigitalPasswordByTouch(context, finalPasswordLayout, password, versionCode,
+                        switchToPasswordRunnable,
+                        () -> rootView.postDelayed(switchToPasswordRunnable, 500));
+            } catch (Throwable e) {
                 Toaster.showLong(Lang.getString(R.id.toast_password_auto_enter_fail));
-                L.e("inputDigitPassword NPE", e);
-            } catch (Exception e) {
-                Toaster.showLong(Lang.getString(R.id.toast_password_auto_enter_fail));
-                L.e(e);
+                L.e("inputDigitPasswordByTouch failed", e.getClass().getName());
+                switchToPasswordRunnable.run();
             }
-            rootView.postDelayed(switchToPasswordRunnable, 1000);
         }, switchToPasswordRunnable);
 
         // Icon click -> switch to password
@@ -602,7 +757,8 @@ public class WeChatBasePlugin implements IAppPlugin, IMockCurrentUser {
     /**
      * Matches module m2056: input password by simulating touch events.
      */
-    private void inputDigitalPasswordByTouch(Context context, View keyboardParent, String pwd, int versionCode) {
+    private void inputDigitalPasswordByTouch(Context context, View keyboardParent, char[] pwd, int versionCode,
+                                             @Nullable Runnable onError, @Nullable Runnable onDone) {
         DigitPasswordKeyPadInfo digitPasswordKeyPad = WeChatVersionControl.getDigitPasswordKeyPad(versionCode);
         if (keyboardParent == null || keyboardParent.getContext() == null) {
             throw new NullPointerException("rootView is null");
@@ -613,60 +769,122 @@ public class WeChatBasePlugin implements IAppPlugin, IMockCurrentUser {
         if (pwd == null) {
             throw new NullPointerException("password is null");
         }
-        if (pwd.isEmpty()) {
+        if (pwd.length == 0) {
             throw new IllegalArgumentException("password is empty");
         }
 
-        Handler handler = new Handler(Looper.getMainLooper());
-        Random random = new Random();
-        int totalDelay = 0;
-        for (int i = 0; i < pwd.length(); i++) {
-            final char c = pwd.charAt(i);
-            if (i > 0) {
-                int delay = (int) (random.nextGaussian() * 3.33d + 70);
-                if (delay < 60) delay = 60;
-                if (delay > 80) delay = 80;
-                totalDelay += delay;
-            }
-            final View finalKeyboardParent = keyboardParent;
-            final String packageName = context.getPackageName();
-            handler.postDelayed(() -> {
-                String[] keyIds = digitPasswordKeyPad.keys.get(String.valueOf(c));
-                if (keyIds == null) {
-                    throw new IllegalArgumentException("Password contains invalid character: " + c);
+        // Taps are asynchronous: keep our own copy (pwd is wiped when the decrypt callback returns),
+        // read one char per step straight from the array (no per-digit captures / Strings), wipe at the end.
+        final PendingSecretInput pending = startPendingSecretInput(pwd);
+        final Handler handler = new Handler(Looper.getMainLooper());
+        final Random random = new Random();
+        final String packageName = context.getPackageName();
+        final int[] index = new int[]{0};
+        final Runnable[] step = new Runnable[1];
+        step[0] = () -> {
+            try {
+                char[] chars = pending.chars;
+                if (pending.finished || chars == null) {
+                    return;
                 }
-                View digitView = ViewUtils.findViewByName(finalKeyboardParent, packageName, keyIds);
+                String[] keyIds = digitPasswordKeyPad.keyIdsForDigit(chars[index[0]]);
+                if (keyIds == null) {
+                    // never include password characters in messages / logs
+                    throw new IllegalArgumentException("Password contains an unsupported character");
+                }
+                View digitView = ViewUtils.findViewByName(keyboardParent, packageName, keyIds);
                 if (digitView == null) {
                     throw new NullPointerException("Cannot find digit view");
                 }
                 if (digitView.getContext() == null) {
-                    return;
+                    throw new IllegalStateException("digit view detached");
                 }
                 int w = Math.max(digitView.getWidth(), 0);
                 int h = Math.max(digitView.getHeight(), 0);
                 Random r = new Random(SystemClock.uptimeMillis());
                 float x = w > 0 ? r.nextInt(w) : 0;
                 float y = h > 0 ? r.nextInt(h) : 0;
-                ArrayList<MotionEvent> events = new ArrayList<>();
                 long downTime = SystemClock.uptimeMillis();
-                events.add(MotionEvent.obtain(downTime, downTime, MotionEvent.ACTION_DOWN, x, y, 0));
-                events.add(MotionEvent.obtain(downTime, downTime + 25, MotionEvent.ACTION_UP, x, y, 0));
-                if (digitView.getContext() == null || events.isEmpty()) {
-                    return;
-                }
-                for (int j = 0; j < events.size(); j++) {
-                    MotionEvent event = events.get(j);
+                MotionEvent[] events = new MotionEvent[]{
+                        MotionEvent.obtain(downTime, downTime, MotionEvent.ACTION_DOWN, x, y, 0),
+                        MotionEvent.obtain(downTime, downTime + 25, MotionEvent.ACTION_UP, x, y, 0),
+                };
+                for (MotionEvent event : events) {
                     try {
                         digitView.dispatchTouchEvent(event);
                     } finally {
                         event.recycle();
                     }
                 }
-            }, totalDelay);
-        }
+                index[0]++;
+                if (index[0] >= chars.length) {
+                    finishPendingSecretInput(pending);
+                    if (onDone != null) {
+                        onDone.run();
+                    }
+                    return;
+                }
+                int delay = (int) (random.nextGaussian() * 3.33d + 70);
+                if (delay < 60) delay = 60;
+                if (delay > 80) delay = 80;
+                handler.postDelayed(step[0], delay);
+            } catch (Throwable t) {
+                boolean wasActive = !pending.finished;
+                finishPendingSecretInput(pending);
+                if (wasActive) {
+                    L.e("inputDigitalPasswordByTouch failed", t.getClass().getName());
+                    Toaster.showLong(Lang.getString(R.id.toast_password_auto_enter_fail));
+                    runFallback(onError);
+                }
+            }
+        };
+        handler.post(step[0]);
     }
 
     protected void onPayDialogShown(Activity activity, ViewGroup rootView) {
+        final Runnable[] fallbackHolder = new Runnable[1];
+        try {
+            onPayDialogShownInternal(activity, rootView, fallbackHolder);
+        } catch (Throwable t) {
+            L.e("WeChat: onPayDialogShown failed, restoring native password input", t);
+            if (fallbackHolder[0] != null) {
+                runFallback(fallbackHolder[0]);
+            } else {
+                restoreClassicDialogViews(rootView);
+            }
+        }
+    }
+
+    /** Generic classic pay dialog cleanup used when the pay flow crashed before its own fallback existed. */
+    private void restoreClassicDialogViews(@Nullable ViewGroup rootView) {
+        abortPendingPasswordInput();
+        try {
+            mIdentifySession++;
+            XBiometricIdentify identify = mFingerprintIdentify;
+            mFingerprintIdentify = null;
+            if (identify != null) {
+                identify.cancelIdentify();
+            }
+        } catch (Throwable t) {
+            L.e(t);
+        }
+        try {
+            if (rootView != null) {
+                View fingerPrintLayout;
+                while ((fingerPrintLayout = rootView.findViewWithTag("fingerPrintLayout")) != null) {
+                    ViewUtils.removeFromSuperView(fingerPrintLayout);
+                    if (fingerPrintLayout.getParent() != null) {
+                        break;
+                    }
+                }
+            }
+        } catch (Throwable t) {
+            L.e(t);
+        }
+        mMockCurrentUser = false;
+    }
+
+    private void onPayDialogShownInternal(Activity activity, ViewGroup rootView, Runnable[] fallbackHolder) {
         L.d("PayDialog show");
         Context context = rootView.getContext();
         Config config = Config.from(context);
@@ -677,7 +895,7 @@ public class WeChatBasePlugin implements IAppPlugin, IMockCurrentUser {
             return;
         }
         String passwordEncrypted = config.getPasswordEncrypted();
-        if (TextUtils.isEmpty(passwordEncrypted) || TextUtils.isEmpty(config.getPasswordIV())) {
+        if (TextUtils.isEmpty(passwordEncrypted)) {
             NotifyUtils.notifyBiometricIdentify(context, Lang.getString(R.id.toast_password_not_set_wechat));
             return;
         }
@@ -741,17 +959,26 @@ public class WeChatBasePlugin implements IAppPlugin, IMockCurrentUser {
             fingerprintImageView.setVisibility(config.isShowFingerprintIcon() ? View.VISIBLE : View.GONE);
         }
 
-        final Runnable switchToPasswordRunnable = ()-> {
-            if (smallPayDialogFloating) {
-                passwordLayout.removeView(fingerPrintLayout);
-            } else {
-                rootView.removeView(fingerPrintLayout);
+        final Runnable switchToPasswordRunnable = reentrancyGuarded(()-> {
+            abortPendingPasswordInput();
+            try {
+                cancelFingerprintIdentify();
+            } catch (Throwable t) {
+                L.e(t);
+            }
+            ViewUtils.removeFromSuperView(fingerPrintLayout);
+            try {
+                // restore alpha / height possibly changed by inputDigitalPassword
+                ((ViewGroup) mInputEditText.getParent().getParent()).setAlpha(1f);
+            } catch (Throwable t) {
+                L.e(t);
             }
             mInputEditText.setVisibility(View.VISIBLE);
-            keyboardViews.get(keyboardViews.size() - 1).setVisibility(View.VISIBLE);
+            if (!keyboardViews.isEmpty()) {
+                keyboardViews.get(keyboardViews.size() - 1).setVisibility(View.VISIBLE);
+            }
             mInputEditText.requestFocus();
             mInputEditText.performClick();
-            cancelFingerprintIdentify();
             mMockCurrentUser = false;
             if (titleTextView != null) {
                 titleTextView.setText(Lang.getString(R.id.wechat_payview_password_title));
@@ -759,7 +986,8 @@ public class WeChatBasePlugin implements IAppPlugin, IMockCurrentUser {
             if (usePasswordText != null) {
                 usePasswordText.setText(Lang.getString(R.id.wechat_payview_fingerprint_switch_text));
             }
-        };
+        });
+        fallbackHolder[0] = switchToPasswordRunnable;
 
         final Runnable switchToFingerprintRunnable = ()-> {
             mInputEditText.setVisibility(View.GONE);
@@ -793,8 +1021,7 @@ public class WeChatBasePlugin implements IAppPlugin, IMockCurrentUser {
                 rootView.addView(fingerPrintLayout, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
             }
             initFingerPrintLock(context, config, smallPayDialogFloating, passwordEncrypted, (password)-> {
-                BlackListUtils.applyIfNeeded(context);
-                inputDigitalPassword(context, mInputEditText, password, keyboardViews, smallPayDialogFloating);
+                inputDigitalPassword(context, mInputEditText, password, keyboardViews, smallPayDialogFloating, switchToPasswordRunnable);
             }, switchToPasswordRunnable);
             if (titleTextView != null) {
                 titleTextView.setText(Lang.getString(R.id.wechat_payview_fingerprint_title));
@@ -817,6 +1044,7 @@ public class WeChatBasePlugin implements IAppPlugin, IMockCurrentUser {
                     }
                 } catch (Exception e) {
                     L.e(e);
+                    switchToPasswordRunnable.run();
                 }
                 return true;
             });
@@ -833,13 +1061,20 @@ public class WeChatBasePlugin implements IAppPlugin, IMockCurrentUser {
                     }
                 } catch (Exception e) {
                     L.e(e);
+                    switchToPasswordRunnable.run();
                 }
                 return true;
             });
         }
 
         fingerprintImageView.setOnClickListener(view -> switchToPasswordRunnable.run());
-        switchToFingerprintRunnable.run();
+        try {
+            switchToFingerprintRunnable.run();
+        } catch (Throwable t) {
+            L.e("WeChat: switchToFingerprint failed", t);
+            switchToPasswordRunnable.run();
+            return;
+        }
         if (config.isVolumeDownMonitorEnabled()) {
             ViewUtils.registerVolumeKeyDownEventListener(activity.getWindow(), event -> {
                 if (mFingerprintIdentifyTemporaryBlocking) {
@@ -874,7 +1109,12 @@ public class WeChatBasePlugin implements IAppPlugin, IMockCurrentUser {
                         public void onViewDetachedFromWindow(@NonNull View view) {
                             L.d("onViewDetachedFromWindow", ViewUtils.getViewInfo(view));
                             view.removeOnAttachStateChangeListener(this);
-                            switchToFingerprintRunnable.run();
+                            try {
+                                switchToFingerprintRunnable.run();
+                            } catch (Throwable t) {
+                                L.e("WeChat: switchToFingerprint failed", t);
+                                switchToPasswordRunnable.run();
+                            }
                             rootView.post(() -> watchForSwitchPaymentMethod(activity, rootView, switchToPasswordRunnable, switchToFingerprintRunnable));
                         }
                     }
@@ -882,8 +1122,13 @@ public class WeChatBasePlugin implements IAppPlugin, IMockCurrentUser {
         });
     }
 
-    private void inputDigitalPassword(Context context, EditText inputEditText, String pwd,
-                                      List<View> keyboardViews, boolean smallPayDialogFloating) {
+    /**
+     * @param pwd only valid during this call (wiped by the caller afterwards); the asynchronous
+     *            8.0.43+ path works on its own copy which is wiped after the last key press.
+     */
+    private void inputDigitalPassword(Context context, EditText inputEditText, char[] pwd,
+                                      List<View> keyboardViews, boolean smallPayDialogFloating,
+                                      Runnable onError) {
         int versionCode = getVersionCode(context);
         if (versionCode >= Constant.WeChat.WECHAT_VERSION_CODE_8_0_43) {
             DigitPasswordKeyPadInfo digitPasswordKeyPad = WeChatVersionControl.getDigitPasswordKeyPad(versionCode);
@@ -898,9 +1143,21 @@ public class WeChatBasePlugin implements IAppPlugin, IMockCurrentUser {
             int keyboardViewHeight = keyboardViewParams.height;
             keyboardViewParams.height = 2;
             inputEditText.requestFocus();
+            final PendingSecretInput pending = startPendingSecretInput(pwd);
             inputEditText.post(() -> {
-                for (char c : pwd.toCharArray()) {
-                    String[] keyIds = digitPasswordKeyPad.keys.get(String.valueOf(c));
+              try {
+                char[] chars = pending.chars;
+                if (pending.finished || chars == null) {
+                    // aborted before the post ran (e.g. switched to password / dismissed)
+                    keyboardViewParams.height = keyboardViewHeight;
+                    ((ViewGroup)inputEditText.getParent().getParent()).setAlpha(1f);
+                    return;
+                }
+                if (digitPasswordKeyPad == null) {
+                    throw new NullPointerException("keyPadInfo is null");
+                }
+                for (int i = 0; i < chars.length; i++) {
+                    String[] keyIds = digitPasswordKeyPad.keyIdsForDigit(chars[i]);
                     if (keyIds == null) {
                         continue;
                     }
@@ -909,23 +1166,38 @@ public class WeChatBasePlugin implements IAppPlugin, IMockCurrentUser {
                         ViewUtils.performActionClick(digitView);
                     }
                 }
+                finishPendingSecretInput(pending);
                 // inputEditText.setVisibility(View.VISIBLE); 副作用反制
                 keyboardView.post(() -> inputEditText.setVisibility(View.GONE));
                 keyboardView.postDelayed(() -> {
                     ((ViewGroup)inputEditText.getParent().getParent()).setAlpha(1f);
                     keyboardViewParams.height = keyboardViewHeight;
                 }, 1000);
+              } catch (Throwable t) {
+                finishPendingSecretInput(pending);
+                L.e("inputDigitalPassword failed", t.getClass().getName());
+                try {
+                    keyboardViewParams.height = keyboardViewHeight;
+                    ((ViewGroup)inputEditText.getParent().getParent()).setAlpha(1f);
+                } catch (Throwable ignore) {
+                }
+                Toaster.showLong(Lang.getString(R.id.toast_password_auto_enter_fail));
+                runFallback(onError);
+              } finally {
+                finishPendingSecretInput(pending);
+              }
             });
             return;
         }
         if (getVersionCode(context) >= Constant.WeChat.WECHAT_VERSION_CODE_8_0_18) {
-            inputEditText.getText().clear();
-            for (char c : pwd.toCharArray()) {
-                inputEditText.append(String.valueOf(c));
+            Editable editable = inputEditText.getText();
+            editable.clear();
+            for (int i = 0; i < pwd.length; i++) {
+                editable.append(pwd[i]);
             }
             return;
         }
-        inputEditText.setText(pwd);
+        inputEditText.setText(pwd, 0, pwd.length);
     }
 
     private boolean isSmallPayDialogFloating(ViewGroup passwordLayout) {
@@ -942,6 +1214,7 @@ public class WeChatBasePlugin implements IAppPlugin, IMockCurrentUser {
      */
     protected void onPayDialogDismiss(Context context, View rootView, int param) {
         L.d("PayDialog dismiss");
+        abortPendingPasswordInput();
         if (!Config.from(context).isOn()) {
             return;
         }
@@ -988,6 +1261,7 @@ public class WeChatBasePlugin implements IAppPlugin, IMockCurrentUser {
     }
 
     private void cancelFingerprintIdentify() {
+        mIdentifySession++;
         XBiometricIdentify fingerprintIdentify = mFingerprintIdentify;
         if (fingerprintIdentify == null) {
             return;

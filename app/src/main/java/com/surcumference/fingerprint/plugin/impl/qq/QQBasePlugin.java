@@ -1,3 +1,4 @@
+// Modified by mqmqgo, 2026-09-25: Keystore-only password check, removed telemetry/blacklist calls; password as wiped char[]
 package com.surcumference.fingerprint.plugin.impl.qq;
 
 import static com.surcumference.fingerprint.Constant.ICON_QQ_SETTING_ENTRY_DARK_BASE64;
@@ -39,8 +40,8 @@ import com.surcumference.fingerprint.util.Config;
 import com.surcumference.fingerprint.util.DpUtils;
 import com.surcumference.fingerprint.util.ImageUtils;
 import com.surcumference.fingerprint.util.KeyboardUtils;
-import com.surcumference.fingerprint.util.QQUtils;
 import com.surcumference.fingerprint.util.StyleUtils;
+import com.surcumference.fingerprint.util.SecureChars;
 import com.surcumference.fingerprint.util.Task;
 import com.surcumference.fingerprint.util.ViewUtils;
 import com.surcumference.fingerprint.util.XBiometricIdentify;
@@ -115,7 +116,6 @@ public class QQBasePlugin implements IAppPlugin, IMockCurrentUser {
                 L.d("activity", activity, "clz", activityClzName);
             }
             if (activityClzName.contains(".SplashActivity")) {
-                QQUtils.checkBlackListQQ(activity);
             }
             if (activityClzName.contains(".QWalletPluginProxyActivity")
                 || activityClzName.contains(".QWalletToolFragmentActivity")) {
@@ -230,7 +230,7 @@ public class QQBasePlugin implements IAppPlugin, IMockCurrentUser {
         Context context = activity;
         Config config = Config.from(context);
         String passwordEncrypted = config.getPasswordEncrypted();
-        if (TextUtils.isEmpty(passwordEncrypted) || TextUtils.isEmpty(config.getPasswordIV()) ) {
+        if (TextUtils.isEmpty(passwordEncrypted)) {
             Toaster.showLong(Lang.getString(R.id.toast_password_not_set_qq));
             return;
         }
@@ -336,7 +336,7 @@ public class QQBasePlugin implements IAppPlugin, IMockCurrentUser {
                 payDialog.withdrawTitleTextView.setText("使用指纹验证身份");
             }
             initFingerPrintLock(context, passwordEncrypted, (password) -> { // success
-                payDialog.inputEditText.setText(password);
+                payDialog.inputEditText.setText(password, 0, password.length);
                 if (longPassword) {
                     payDialog.okButton.performClick();
                 }
@@ -475,7 +475,8 @@ public class QQBasePlugin implements IAppPlugin, IMockCurrentUser {
                 .decryptPasscode(passwordEncrypted, new BizBiometricIdentify.IdentifyListener() {
 
                     @Override
-                    public void onDecryptionSuccess(BizBiometricIdentify identify, @NonNull String decryptedContent) {
+                    public void onDecryptionSuccess(BizBiometricIdentify identify, @NonNull char[] decryptedContent) {
+                        // decryptedContent is wiped by XBiometricIdentify right after this returns
                         super.onDecryptionSuccess(identify, decryptedContent);
                         onSuccessUnlockCallback.onFingerprintVerificationOK(decryptedContent);
                     }

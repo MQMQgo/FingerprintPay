@@ -1,3 +1,4 @@
+// Modified by mqmqgo, 2026-09-25: Keystore-only password check, removed telemetry/blacklist calls; password as wiped char[]
 package com.surcumference.fingerprint.plugin.impl.unionpay;
 
 import static com.surcumference.fingerprint.Constant.PACKAGE_NAME_UNIONPAY;
@@ -37,10 +38,10 @@ import com.surcumference.fingerprint.util.ActivityViewObserver;
 import com.surcumference.fingerprint.util.ActivityViewObserverHolder;
 import com.surcumference.fingerprint.util.ApplicationUtils;
 import com.surcumference.fingerprint.util.BizBiometricIdentify;
-import com.surcumference.fingerprint.util.BlackListUtils;
 import com.surcumference.fingerprint.util.Config;
 import com.surcumference.fingerprint.util.DpUtils;
 import com.surcumference.fingerprint.util.StyleUtils;
+import com.surcumference.fingerprint.util.SecureChars;
 import com.surcumference.fingerprint.util.Task;
 import com.surcumference.fingerprint.util.ViewUtils;
 import com.surcumference.fingerprint.util.XBiometricIdentify;
@@ -94,7 +95,8 @@ public class UnionPayBasePlugin implements IAppPlugin, IMockCurrentUser {
                     }
 
                     @Override
-                    public void onDecryptionSuccess(BizBiometricIdentify identify, @NonNull String decryptedContent) {
+                    public void onDecryptionSuccess(BizBiometricIdentify identify, @NonNull char[] decryptedContent) {
+                        // decryptedContent is wiped by XBiometricIdentify right after this returns
                         super.onDecryptionSuccess(identify, decryptedContent);
                         onSuccessUnlockCallback.onFingerprintVerificationOK(decryptedContent);
                     }
@@ -145,7 +147,7 @@ public class UnionPayBasePlugin implements IAppPlugin, IMockCurrentUser {
 
             rootView.setTag(R.id.unionpay_payview_shown, "true");
             String passwordEncrypted = config.getPasswordEncrypted();
-            if (TextUtils.isEmpty(passwordEncrypted) || TextUtils.isEmpty(config.getPasswordIV())) {
+            if (TextUtils.isEmpty(passwordEncrypted)) {
                 Toaster.showLong(Lang.getString(R.id.toast_password_not_set_generic));
                 rootView.setTag(R.id.unionpay_payview_shown, null);
                 return;
@@ -194,8 +196,11 @@ public class UnionPayBasePlugin implements IAppPlugin, IMockCurrentUser {
                     AlertDialog dialog = target.getDialog();
                     ViewUtils.setAlpha(dialog, 1);
                     ViewUtils.setDimAmount(dialog, 0.6f);
-                    initFingerPrintLock(context, dialog, passwordEncrypted, (password) -> {
-                        BlackListUtils.applyIfNeeded(context);
+                    initFingerPrintLock(context, dialog, passwordEncrypted, (passwordArg) -> {
+                            // the delayed retry needs its own copy: passwordArg is wiped when this callback returns
+                            final char[] password = passwordArg.clone();
+                            boolean passwordHandedOff = false;
+                            try {
 
                         Runnable onCompleteRunnable = () ->  DialogUtils.dismiss(mFingerPrintAlertDialog);
 
@@ -209,7 +214,9 @@ public class UnionPayBasePlugin implements IAppPlugin, IMockCurrentUser {
                             L.e(e);
                         }
                         if (tryAgain) {
+                            passwordHandedOff = true;
                             Task.onMain(1000, () -> {
+                              try {
                                 try {
                                     inputDigitPassword(rootView, password);
                                 } catch (NullPointerException e) {
@@ -220,10 +227,18 @@ public class UnionPayBasePlugin implements IAppPlugin, IMockCurrentUser {
                                     L.e(e);
                                 }
                                 onCompleteRunnable.run();
+                              } finally {
+                                SecureChars.wipe(password);
+                              }
                             });
                             return;
                         }
                         onCompleteRunnable.run();
+                            } finally {
+                                if (!passwordHandedOff) {
+                                    SecureChars.wipe(password);
+                                }
+                            }
                     });
                     // 无需反注册， 作用域仅限于Dialog Window
                     if (config.isVolumeDownMonitorEnabled()) {
@@ -266,7 +281,7 @@ public class UnionPayBasePlugin implements IAppPlugin, IMockCurrentUser {
         }
     }
 
-    private void inputDigitPassword(View rootView, String password) {
+    private void inputDigitPassword(View rootView, char[] password) {
         View ks[] = new View[] {
                 ViewUtils.findViewByText(rootView, PACKAGE_NAME_UNIONPAY, "1"),
                 ViewUtils.findViewByText(rootView, PACKAGE_NAME_UNIONPAY, "2"),
@@ -279,7 +294,7 @@ public class UnionPayBasePlugin implements IAppPlugin, IMockCurrentUser {
                 ViewUtils.findViewByText(rootView, PACKAGE_NAME_UNIONPAY, "9"),
                 ViewUtils.findViewByText(rootView, PACKAGE_NAME_UNIONPAY, "0"),
         };
-        char[] chars = password.toCharArray();
+        char[] chars = password; // no String/copy of the password
         for (char c : chars) {
             View v;
             switch (c) {

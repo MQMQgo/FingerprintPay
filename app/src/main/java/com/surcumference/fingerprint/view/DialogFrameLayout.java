@@ -1,3 +1,4 @@
+// Modified by mqmqgo, 2026-09-25: removed network/update/donate/QQ-group items and Biometric API toggle
 package com.surcumference.fingerprint.view;
 
 import android.app.AlertDialog;
@@ -30,7 +31,6 @@ import com.surcumference.fingerprint.listener.OnDismissListener;
 import com.surcumference.fingerprint.listener.OnShowListener;
 import com.surcumference.fingerprint.util.DpUtils;
 import com.surcumference.fingerprint.util.StyleUtils;
-import com.surcumference.fingerprint.util.Umeng;
 import com.surcumference.fingerprint.util.drawable.XDrawable;
 
 /**
@@ -77,7 +77,6 @@ public abstract class DialogFrameLayout<T extends DialogFrameLayout> extends Fra
         window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN);
         window.setBackgroundDrawable(dialogWindowBackground());
         dialog.show();
-        Umeng.onResume(getContext());
         mDialog = dialog;
         return dialog;
     }
@@ -88,7 +87,6 @@ public abstract class DialogFrameLayout<T extends DialogFrameLayout> extends Fra
         if (listener != null) {
             listener.onDismiss(this);
         }
-        Umeng.onPause(getContext());
     }
 
     @Override
@@ -97,7 +95,6 @@ public abstract class DialogFrameLayout<T extends DialogFrameLayout> extends Fra
         if (listener != null) {
             listener.onShow((T)this);
         }
-        Umeng.onResume(getContext());
     }
 
     public T withOnDismissListener(OnDismissListener listener) {

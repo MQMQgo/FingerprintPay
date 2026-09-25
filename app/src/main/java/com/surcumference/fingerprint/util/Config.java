@@ -1,14 +1,15 @@
+// Modified by mqmqgo, 2026-09-25: Keystore blob storage, removed ANDROID_ID/AES software layer
 package com.surcumference.fingerprint.util;
 
 import android.content.Context;
 import android.content.SharedPreferences;
-import android.provider.Settings;
 import android.text.TextUtils;
 
 import androidx.annotation.Nullable;
 
 import com.surcumference.fingerprint.BuildConfig;
 import com.surcumference.fingerprint.util.log.L;
+import com.wei.android.lib.fingerprintidentify.util.CryptoObjectHelper;
 
 import java.util.WeakHashMap;
 
@@ -18,6 +19,13 @@ import java.util.WeakHashMap;
 
 public class Config {
 
+    /** Keystore alias prefix; ".a"/".b" slots are alternated on re-encryption. */
+    public static final String KEY_ALIAS_BASE = "fpp.wechat.v2";
+    private static final String KEY_PASSWORD_BLOB = "password_v2";
+    private static final String KEY_PASSWORD_ALIAS = "password_v2_alias";
+    private static final String LEGACY_KEY_PASSWORD = "password";
+    private static final String LEGACY_KEY_PASSWORD_IV = "password_iv";
+    private static final String LEGACY_KEY_BIOMETRIC_API = "biometric_api";
 
     private static WeakHashMap<Context, ObjectCache> sConfigCache = new WeakHashMap<>();
 
@@ -33,8 +41,16 @@ public class Config {
         }
         if (mCache == null) {
             SharedPreferences sharedPreferences = context.getSharedPreferences(BuildConfig.APPLICATION_ID + ".settings", Context.MODE_PRIVATE);
-            String deviceId = Settings.System.getString(context.getContentResolver(), Settings.System.ANDROID_ID);
-            int passwordEncKey = String.valueOf(deviceId).hashCode();
+            // Hardened build: legacy (ECB/ANDROID_ID wrapped) ciphertext is never migrated.
+            if (sharedPreferences.contains(LEGACY_KEY_PASSWORD) || sharedPreferences.contains(LEGACY_KEY_PASSWORD_IV)
+                    || sharedPreferences.contains(LEGACY_KEY_BIOMETRIC_API)) {
+                sharedPreferences.edit()
+                        .remove(LEGACY_KEY_PASSWORD)
+                        .remove(LEGACY_KEY_PASSWORD_IV)
+                        .remove(LEGACY_KEY_BIOMETRIC_API)
+                        .remove("skip_version")
+                        .commit();
+            }
             SharedPreferences mainAppSharePreference;
             try {
                 mainAppSharePreference = XPreferenceProvider.getRemoteSharedPreference(context);
@@ -42,7 +58,7 @@ public class Config {
                 mainAppSharePreference = sharedPreferences;
                 L.e(e);
             }
-            mCache = new ObjectCache(sharedPreferences, mainAppSharePreference, passwordEncKey);
+            mCache = new ObjectCache(sharedPreferences, mainAppSharePreference);
             sConfigCache.put(context, mCache);
         }
     }
@@ -55,40 +71,52 @@ public class Config {
         mCache.sharedPreferences.edit().putBoolean("switch_on1", on).apply();
     }
 
+    /**
+     * @return Base64(IV[12] || AES-256-GCM ciphertext+tag), produced by a hardware-backed,
+     * biometric-bound Android Keystore key. Never the plain password.
+     */
     @Nullable
     public String getPasswordEncrypted() {
-        String enc = mCache.sharedPreferences.getString("password", null);
-        if (TextUtils.isEmpty(enc)) {
+        String enc = mCache.sharedPreferences.getString(KEY_PASSWORD_BLOB, null);
+        if (TextUtils.isEmpty(enc) || TextUtils.isEmpty(getPasswordKeyAlias())) {
             return null;
         }
-        return AESUtils.decrypt(enc, String.valueOf(mCache.passwordEncKey));
+        return enc;
     }
 
-    public void setPasswordEncrypted(String password) {
-        String enc = AESUtils.encrypt(password, String.valueOf(mCache.passwordEncKey));
-        mCache.sharedPreferences.edit().putString("password", enc).apply();
-    }
-
+    /** Keystore alias the currently stored blob is bound to, or null. */
     @Nullable
-    public String getPasswordIV() {
-        String enc = mCache.sharedPreferences.getString("password_iv", null);
-        if (TextUtils.isEmpty(enc)) {
+    public String getPasswordKeyAlias() {
+        String alias = mCache.sharedPreferences.getString(KEY_PASSWORD_ALIAS, null);
+        if (TextUtils.isEmpty(alias)) {
             return null;
         }
-        return AESUtils.decrypt(enc, String.valueOf(mCache.passwordEncKey));
+        return alias;
     }
 
-    public void setPasswordIV(String iv) {
-        if (TextUtils.isEmpty(iv)) {
-            mCache.sharedPreferences.edit().remove("password_iv").apply();
-            return;
-        }
-        String enc = AESUtils.encrypt(iv, String.valueOf(mCache.passwordEncKey));
-        mCache.sharedPreferences.edit().putString("password_iv", enc).apply();
+    /** Alias to use for a new encryption, so a cancelled re-encryption never destroys the current key. */
+    public String getNextPasswordKeyAlias() {
+        String current = getPasswordKeyAlias();
+        String a = KEY_ALIAS_BASE + ".a";
+        String b = KEY_ALIAS_BASE + ".b";
+        return a.equals(current) ? b : a;
     }
 
-    public String getPasswordEncKey() {
-        return String.valueOf(mCache.passwordEncKey);
+    public void setPasswordEncrypted(String blob, String keyAlias) {
+        mCache.sharedPreferences.edit()
+                .putString(KEY_PASSWORD_BLOB, blob)
+                .putString(KEY_PASSWORD_ALIAS, keyAlias)
+                .commit();
+    }
+
+    /** Removes the stored ciphertext and deletes both Keystore keys. */
+    public void clearPassword() {
+        mCache.sharedPreferences.edit()
+                .remove(KEY_PASSWORD_BLOB)
+                .remove(KEY_PASSWORD_ALIAS)
+                .commit();
+        CryptoObjectHelper.removeKey(KEY_ALIAS_BASE + ".a");
+        CryptoObjectHelper.removeKey(KEY_ALIAS_BASE + ".b");
     }
 
     public boolean isShowFingerprintIcon() {
@@ -99,34 +127,12 @@ public class Config {
         mCache.sharedPreferences.edit().putBoolean("fingerprint_icon", on).apply();
     }
 
-    public boolean isUseBiometricApi() {
-        return mCache.sharedPreferences.getBoolean("biometric_api", false);
-    }
-
-    public void setUseBiometricApi(boolean on) {
-        mCache.sharedPreferences.edit().putBoolean("biometric_api", on).apply();
-    }
-
     public boolean isVolumeDownMonitorEnabled() {
         return mCache.sharedPreferences.getBoolean("volume_down_monitor_enabled", true);
     }
 
     public void setVolumeDownMonitorEnabled(boolean on) {
         mCache.sharedPreferences.edit().putBoolean("volume_down_monitor_enabled", on).apply();
-    }
-
-    public void setSkipVersion(String version) {
-        mCache.sharedPreferences.edit().putString("skip_version", version).apply();
-        mCache.mainAppSharedPreferences.edit().putString("skip_version", version).apply();
-    }
-
-    @Nullable
-    public String getSkipVersion() {
-        String skipVersion = mCache.mainAppSharedPreferences.getString("skip_version", null);
-        if (TextUtils.isEmpty(skipVersion)) {
-            skipVersion = mCache.sharedPreferences.getString("skip_version", null);
-        }
-        return skipVersion;
     }
 
     public void setLicenseAgree(boolean agree) {
@@ -150,12 +156,10 @@ public class Config {
     private class ObjectCache {
         SharedPreferences sharedPreferences;
         SharedPreferences mainAppSharedPreferences;
-        int passwordEncKey;
 
-        public ObjectCache(SharedPreferences sharedPreferences, SharedPreferences mainAppSharedPreferences,int passwordEncKey) {
+        public ObjectCache(SharedPreferences sharedPreferences, SharedPreferences mainAppSharedPreferences) {
             this.sharedPreferences = sharedPreferences;
             this.mainAppSharedPreferences = mainAppSharedPreferences;
-            this.passwordEncKey = passwordEncKey;
         }
     }
 }

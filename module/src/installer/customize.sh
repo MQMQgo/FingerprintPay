@@ -1,4 +1,5 @@
-ui_print "Fingerprint Pay Batch Installer"
+# Modified by mqmqgo, 2026-09-25: installer strings for the AES-256 fork
+ui_print "Fingerprint Pay AES-256 (unofficial fork by mqmqgo) Batch Installer"
 ls "$MODPATH"
 ui_print "$ZIPFILE"
 INSTALLER_MODPATH="$MODPATH"

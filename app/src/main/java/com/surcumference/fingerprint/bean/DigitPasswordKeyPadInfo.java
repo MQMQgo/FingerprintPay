@@ -1,3 +1,4 @@
+// Modified by mqmqgo, 2026-09-25: digit -> key id lookup without String conversion
 package com.surcumference.fingerprint.bean;
 
 import java.util.HashMap;
@@ -41,4 +42,21 @@ public class DigitPasswordKeyPadInfo {
             this.keys.put("9", key9);
             this.keys.put("0", key0);
         }
-    }
+    
+        /** Key view ids for one digit char, without building a String from the password. */
+        public String[] keyIdsForDigit(char c) {
+            switch (c) {
+                case '0': return key0;
+                case '1': return key1;
+                case '2': return key2;
+                case '3': return key3;
+                case '4': return key4;
+                case '5': return key5;
+                case '6': return key6;
+                case '7': return key7;
+                case '8': return key8;
+                case '9': return key9;
+                default: return null;
+            }
+        }
+}
