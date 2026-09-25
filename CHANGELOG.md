@@ -8,6 +8,8 @@
 
 🔒 设置密码时用 Editable.getChars 读取为 char[] (不调用 toString()), 用 CharsetEncoder 编码到自己控制的缓冲区; 加密完成或对话框关闭后擦除全部中间缓冲区, 并清空输入框
 
+🧹 移除依赖上游密钥或外部上传的 GitHub Actions 工作流 (android.yml, pull_request.yml, release_published.yml); README 删除保留的上游说明部分
+
 ⚠️ 这是尽力而为: ART 的垃圾回收可能在擦除前复制过内存; 微信自身输入控件中的数据不受本模块控制
 
 ### v7.0.0 (2026-09-25) — AES-256版 (mqmqgo 维护的非官方修改版)

@@ -23,7 +23,7 @@
 3. 支付密码只用硬件 Android Keystore (优先 StrongBox, 否则 TEE) 中的 AES-256-GCM 密钥加密. 每次加密和解密都必须通过 BIOMETRIC_STRONG 认证 (API 30+ 用 BiometricPrompt, API 23–29 用 FingerprintManager, 都带 CryptoObject); 指纹变更后密钥失效. 移除 ECB/ANDROID_ID 软件加密、三星和魅族 SDK; 旧密文不迁移.
 4. 任何失败都会自动回退到微信原生密码输入, 带防重入保护; 支付流程入口有异常保护.
 5. 新的模块 ID、名称、作者和版本 (7.0.0 / 40); 更换应用内协议为 GPL-2.0 声明; 在修改过的源文件顶部添加修改声明.
-6. (2026-09-25, v7.0.1) 明文支付密码全程只保存在 char[]/byte[] 中, 不创建 String; 使用后 (或中止时) 立即擦除; 设置密码时输入框在使用后清空.
+6. (2026-09-25, v7.0.1) 明文支付密码全程只保存在 char[]/byte[] 中, 不创建 String; 使用后 (或中止时) 立即擦除; 设置密码时输入框在使用后清空. 移除依赖上游密钥或外部上传 (WebDAV/gitee) 的 GitHub Actions 工作流.
 
 ### 源代码
 完整源代码 (包括构建脚本) 见 https://github.com/MQMQgo/FingerprintPay (分支 `hardened-local`), 子模块见 https://github.com/MQMQgo/FingerprintIdentify.
