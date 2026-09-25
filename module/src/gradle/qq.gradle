@@ -27,7 +27,7 @@ ext {
     moduleDescription = "让QQ支持指纹支付 Fingerprint pay for QQ."
     moduleVersion = "v${project.property("VERSION_NAME")}"
     moduleVersionCode = project.property("VERSION_CODE") as int
-    moduleUpdateJson = "https://gitee.com/eritpchy/FingerprintPay/raw/main/release/update_${pluginTypeName.toLowerCase()}_qq.json"
+    moduleUpdateJson = ""
     moduleResourcePath = fileTree(dir: rootProject.file('../../app/build/intermediates/dex'), include: '**/classes.dex').files.sort { it.lastModified() }.last().absolutePath
 }
 apply from: "$rootDir/fingerprint.gradle"

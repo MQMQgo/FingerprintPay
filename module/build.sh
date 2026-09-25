@@ -12,6 +12,12 @@ MODULE_LIB_NAME="$(echo "$PLUGIN_TYPE_NAME" | tr '[:upper:]' '[:lower:]')-module
 echo VERSION_NAME: $VERSION_NAME
 echo VERSION_CODE: $VERSION_CODE
 bash ./reset.sh
+# Hardened build: no update channel in module.prop (no updateJson line at all)
+sed -i '/^updateJson=/d' $MODULE_TEMPLATE/template/magisk_module/module.prop
+# Pin the NDK used for the native (zygisk) part to make builds reproducible
+NDK_VERSION="${NDK_VERSION:-25.2.9519653}"
+perl -i -pe "s/^(\s*compileSdk\s+target_sdk.*)\$/\$1\n    ndkVersion \"$NDK_VERSION\"/" $MODULE_TEMPLATE/module/build.gradle
+grep -q "ndkVersion \"$NDK_VERSION\"" $MODULE_TEMPLATE/module/build.gradle
 cp -rfv ./src/cpp/* $MODULE_TEMPLATE/module/src/main/cpp/
 cp -rfv "$MODULE_GRALDE_FILE" $MODULE_TEMPLATE/module.gradle
 cp -rfv "./src/gradle/fingerprint.gradle" $MODULE_TEMPLATE/
