@@ -12,7 +12,7 @@
 ### 第三方组件
 | 组件 | 许可证 | 版权 | 说明 |
 | --- | --- | --- | --- |
-| [FingerprintIdentify](https://github.com/uccmawei/FingerprintIdentify) (`3rdparty/FingerprintIdentify`) | MIT | Copyright (c) 2017 Awei | **已修改** (fork: https://github.com/MQMQgo/FingerprintIdentify, 分支 `hardened-local`) |
+| [FingerprintIdentify](https://github.com/uccmawei/FingerprintIdentify) (`3rdparty/FingerprintIdentify`) | MIT | Copyright (c) 2017 Awei | **已修改** (fork: https://github.com/MQMQgo/FingerprintIdentify, 分支 `main`) |
 | [MagiskModuleTemplate](https://github.com/eritpchy/MagiskModuleTemplate) (`3rdparty/MagiskModuleTemplate`) | MIT | Copyright (c) 2020 Rikka | 未修改 (构建时由 `module/build.sh` 在副本上打补丁) |
 
 模块 zip 根目录附带: `LICENSE` (GPL-2.0), `NOTICE.md`, `LICENSE-FingerprintIdentify-MIT.txt`, `LICENSE-MagiskModuleTemplate-MIT.txt`.
@@ -26,7 +26,7 @@
 6. (2026-09-25, v7.0.1) 明文支付密码全程只保存在 char[]/byte[] 中, 不创建 String; 使用后 (或中止时) 立即擦除; 设置密码时输入框在使用后清空. 移除依赖上游密钥或外部上传 (WebDAV/gitee) 的 GitHub Actions 工作流.
 
 ### 源代码
-完整源代码 (包括构建脚本) 见 https://github.com/MQMQgo/FingerprintPay (分支 `hardened-local`), 子模块见 https://github.com/MQMQgo/FingerprintIdentify.
+完整源代码 (包括构建脚本) 见 https://github.com/MQMQgo/FingerprintPay (分支 `main`；v7.0.1 对应标签 `v7.0.1`), 子模块见 https://github.com/MQMQgo/FingerprintIdentify.
 
 ### 无担保声明
 本程序是自由软件, 分发它是希望它有用, 但**不提供任何担保**, 甚至不包括适销性或特定用途适用性的默示担保. 详见 GPL-2.0 第 11、12 条. 使用本软件保存和自动输入支付密码的风险 (包括资金风险) 由使用者自行承担.
