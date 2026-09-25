@@ -8,10 +8,11 @@
 >
 > This is an **unofficial** hardened fork of eritpchy/FingerprintPay, maintained by mqmqgo. It is not affiliated with or supported by the original author.
 
-## 本修改版的变化 (v7.0.0)
+## 本修改版的变化 (v7.0.1)
 - 目标: **KernelSU / Magisk (Zygisk) + 微信**. 其它 App 的插件代码仍可编译, 但未测试.
 - **无网络**: 移除了更新检查、友盟统计、网页、okhttp/okgo; 清单中移除了网络、电话、存储和安装权限; module.prop 中没有 updateJson.
 - **支付密码加密**: 使用硬件 Android Keystore (TEE/StrongBox) 中的 AES-256-GCM 密钥, 每次加密和解密都必须通过强生物识别 (BIOMETRIC_STRONG) 认证; 系统指纹变更后密钥会自动失效. 移除了软件兜底加密和 ANDROID_ID 派生密钥.
+- **明文用后即擦除** (7.0.1): 解密后的密码只存在于 char[]/byte[] 中, 不创建 String, 用完或中止时立即擦除.
 - **失败自动回退**: 取消、锁定、密钥失效、解密失败或任何异常时, 都会恢复微信原生的密码输入.
 - 移除了捐赠界面和 QQ 群入口. 新模块 ID 为 `zygisk_fingerprintpay_wechat_aes256`, 可与官方模块区分 (不要同时安装两者).
 - 详见 [NOTICE.md](./NOTICE.md) 与 [CHANGELOG.md](./CHANGELOG.md).
@@ -21,7 +22,7 @@ GPL-2.0, 与上游相同, 见 [LICENSE](./LICENSE). 第三方组件: Fingerprint
 
 ## 安装 (本修改版)
 1. 如果装过官方模块或旧版加固模块, 请**先卸载**并重启
-2. 从本仓库自行构建, 或使用维护者发布的 `zygisk-fingerprintpay-wechat-aes256-v7.0.0-release.zip`, 在 KernelSU/Magisk 中安装, 然后重启
+2. 从本仓库自行构建, 或使用维护者发布的 `zygisk-fingerprintpay-wechat-aes256-v7.0.1-release.zip`, 在 KernelSU/Magisk 中安装, 然后重启
 3. 在 微信 → 我 → 设置 → 指纹支付 中重新输入支付密码
 
 ## 构建

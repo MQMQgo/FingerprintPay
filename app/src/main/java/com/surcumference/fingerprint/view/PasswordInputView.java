@@ -1,7 +1,9 @@
+// Modified by mqmqgo, 2026-09-25: password read as char[] via Editable.getChars, Editable cleared after use/dismiss
 package com.surcumference.fingerprint.view;
 
 import android.app.AlertDialog;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.graphics.Color;
 import android.text.Editable;
 import android.text.InputType;
@@ -20,6 +22,7 @@ import com.surcumference.fingerprint.Constant;
 import com.surcumference.fingerprint.Lang;
 import com.surcumference.fingerprint.R;
 import com.surcumference.fingerprint.util.DpUtils;
+import com.surcumference.fingerprint.util.SecureChars;
 
 /**
  * Created by Jason on 2017/9/9.
@@ -97,13 +100,24 @@ public class PasswordInputView extends DialogFrameLayout {
         });
     }
 
+    /**
+     * Returns the typed password as a new char[] (Editable.getChars, no toString()).
+     * The caller owns the array and must wipe it ({@link SecureChars#wipe(char[])}).
+     */
     @NonNull
-    public String getInput() {
-        Editable ediable = mInputView.getText();
-        if (ediable == null) {
-            return "";
-        }
-        return ediable.toString();
+    public char[] getInputChars() {
+        return SecureChars.fromEditable(mInputView.getText());
+    }
+
+    /** Overwrites and clears the password Editable. */
+    public void clearInput() {
+        SecureChars.clear(mInputView.getText());
+    }
+
+    @Override
+    public void onDismiss(DialogInterface dialogInterface) {
+        clearInput();
+        super.onDismiss(dialogInterface);
     }
 
     public void setDefaultText(String text) {

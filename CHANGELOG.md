@@ -1,5 +1,15 @@
 <!-- Modified by mqmqgo, 2026-09-25: added 7.0.0 entry -->
 # Changelog
+### v7.0.1 (2026-09-25) — 明文密码用后立即擦除
+
+🔒 解密后的支付密码全程只存在于 char[]/byte[] 中, 不再创建 java.lang.String; 用完立即用 Arrays.fill 擦除 (成功、失败、取消、异常、回退、对话框关闭和迟到回调都会擦除)
+
+🔒 解密用 `doFinal(in, off, len, out, 0)` 写入自己分配的缓冲区, 再用 CharsetDecoder 解码为 char[]; 模拟按键直接从数组按数字映射到键位 ID, 不做 String 转换
+
+🔒 设置密码时用 Editable.getChars 读取为 char[] (不调用 toString()), 用 CharsetEncoder 编码到自己控制的缓冲区; 加密完成或对话框关闭后擦除全部中间缓冲区, 并清空输入框
+
+⚠️ 这是尽力而为: ART 的垃圾回收可能在擦除前复制过内存; 微信自身输入控件中的数据不受本模块控制
+
 ### v7.0.0 (2026-09-25) — AES-256版 (mqmqgo 维护的非官方修改版)
 
 🔒 支付密码只用硬件 Android Keystore 中的 AES-256-GCM 密钥加密 (优先 StrongBox, 否则 TEE; 非硬件密钥直接拒绝), 每次加密和解密都要通过 BIOMETRIC_STRONG 认证; 指纹变更后密钥自动失效

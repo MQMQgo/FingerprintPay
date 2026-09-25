@@ -1,4 +1,4 @@
-// Modified by mqmqgo, 2026-09-25: removed network/update/donate/QQ-group items and Biometric API toggle
+// Modified by mqmqgo, 2026-09-25: removed network/update/donate/QQ-group items and Biometric API toggle; password handled as wiped char[]
 package com.surcumference.fingerprint.view;
 
 import static com.surcumference.fingerprint.view.PasswordInputView.DEFAULT_HIDDEN_PASS;
@@ -31,6 +31,7 @@ import com.surcumference.fingerprint.util.BizBiometricIdentify;
 import com.surcumference.fingerprint.util.Config;
 import com.surcumference.fingerprint.util.DpUtils;
 import com.surcumference.fingerprint.util.NotifyUtils;
+import com.surcumference.fingerprint.util.SecureChars;
 import com.surcumference.fingerprint.util.Task;
 import com.surcumference.fingerprint.util.ViewUtils;
 import com.surcumference.fingerprint.util.log.L;
@@ -189,21 +190,28 @@ public class SettingsView extends DialogFrameLayout implements AdapterView.OnIte
         }
         passwordInputView.withOnPositiveButtonClickListener((dialog, which) -> {
             passwordInputView.hideInputMethod();
-            String inputText = passwordInputView.getInput();
-            if (TextUtils.isEmpty(inputText)) {
-                config.clearPassword();
-                dialog.dismiss();
-                return;
+            // password only as char[]; wiped in finally, Editable cleared right away
+            char[] input = passwordInputView.getInputChars();
+            try {
+                if (input.length == 0) {
+                    config.clearPassword();
+                    dialog.dismiss();
+                    return;
+                }
+                if (SecureChars.contentEquals(input, DEFAULT_HIDDEN_PASS)) {
+                    dialog.dismiss();
+                    return;
+                }
+                passwordInputView.clearInput();
+                // encryptPasscode takes its own copy synchronously
+                updatePassword(dialog, input, onSuccess);
+            } finally {
+                SecureChars.wipe(input);
             }
-            if (DEFAULT_HIDDEN_PASS.equals(inputText)) {
-                dialog.dismiss();
-                return;
-            }
-            updatePassword(dialog, inputText, onSuccess);
         }).showInDialog();
     }
 
-    private void updatePassword(DialogInterface passwordInputDialog, final String password,
+    private void updatePassword(DialogInterface passwordInputDialog, final char[] password,
                                 @Nullable Runnable onSuccess) {
         Context context = this.getContext();
         BizBiometricIdentify fingerprintIdentify = new BizBiometricIdentify(context);

@@ -1,4 +1,4 @@
-// Modified by mqmqgo, 2026-09-25: AES-256-GCM Keystore-only encrypt/decrypt, no software fallback
+// Modified by mqmqgo, 2026-09-25: AES-256-GCM Keystore-only encrypt/decrypt, no software fallback, char[] password
 package com.surcumference.fingerprint.util;
 
 import android.content.Context;
@@ -43,7 +43,8 @@ public class BizBiometricIdentify extends XBiometricIdentify<BizBiometricIdentif
         return this;
     }
 
-    public BizBiometricIdentify encryptPasscode(String passcode, IdentifyListener identifyListener) {
+    /** @param passcode password chars; copied internally, the caller must wipe its own array */
+    public BizBiometricIdentify encryptPasscode(char[] passcode, IdentifyListener identifyListener) {
         Config config = Config.from(context);
         final String newAlias = config.getNextPasswordKeyAlias();
         withEncryptionMode(passcode, newAlias);
