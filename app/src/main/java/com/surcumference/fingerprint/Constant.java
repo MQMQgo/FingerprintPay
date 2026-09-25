@@ -1,3 +1,4 @@
+// Modified by mqmqgo, 2026-09-25: removed URLs, donate and author account constants
 package com.surcumference.fingerprint;
 
 /**

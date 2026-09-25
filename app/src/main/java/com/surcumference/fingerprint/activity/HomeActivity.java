@@ -1,3 +1,4 @@
+// Modified by mqmqgo, 2026-09-25: removed network/update/donate/QQ-group items and Biometric API toggle
 package com.surcumference.fingerprint.activity;
 
 

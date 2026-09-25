@@ -1,3 +1,4 @@
+// Modified by mqmqgo, 2026-09-25: Keystore-only password check, removed telemetry/blacklist calls
 package com.surcumference.fingerprint.plugin.impl.qq;
 
 import static com.surcumference.fingerprint.Constant.ICON_QQ_SETTING_ENTRY_DARK_BASE64;

@@ -1,3 +1,4 @@
+// Modified by mqmqgo, 2026-09-25: removed donate/update/network strings, added key-invalidated strings
 package com.surcumference.fingerprint;
 
 import java.util.Locale;
@@ -87,7 +88,7 @@ public class Lang {
             case R.id.settings_sub_title_password_unionpay:
                 return tr("请输入云闪付的支付密码, 密码会加密后保存, 请放心", "請輸入雲閃付的支付密碼, 密碼會加密后保存, 請放心", "Please enter your Payment password");
             case R.id.settings_sub_title_advance:
-                return tr("指纹图标、Biometric Api...", "指紋圖標、Biometric Api...", "Fingerprint icon, Biometric API...");
+                return tr("指纹图标、音量键临时禁用、日志...", "指紋圖標、音量鍵臨時禁用、日誌...", "Fingerprint icon, volume key disable, logs...");
             case R.id.settings_sub_title_volume_down_fingerprint_temporary_disable:
                 return tr("按下按键会临时禁用指纹支付1分钟(仅应用内认证有效)", "按下按鍵會臨時禁用指紋支付1分鐘(僅應用內認證有效)", "Pressing the button will temporarily disable fingerprint payment for 1 minute (only valid for in-app authentication)");
             case R.id.settings_sub_title_start_logcat:

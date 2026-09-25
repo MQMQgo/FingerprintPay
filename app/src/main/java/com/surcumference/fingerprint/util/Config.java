@@ -1,3 +1,4 @@
+// Modified by mqmqgo, 2026-09-25: Keystore blob storage, removed ANDROID_ID/AES software layer
 package com.surcumference.fingerprint.util;
 
 import android.content.Context;

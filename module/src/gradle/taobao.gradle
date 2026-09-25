@@ -1,3 +1,4 @@
+// Modified by mqmqgo, 2026-09-25: new module name/author/description, no update channel
 ext {
     /*
        This name will be used in the name of the so file ("lib${moduleLibraryName}.so").
@@ -22,9 +23,9 @@ ext {
     */
     magiskModuleId = moduleLibraryName.toString()
     def pluginTypeName = project.property("PLUGIN_TYPE_NAME").toString()
-    moduleName = "${pluginTypeName.capitalize()} - 指纹支付 - 淘宝"
-    moduleAuthor = "Jason Eric"
-    moduleDescription = "让淘宝支持指纹支付 Fingerprint pay for Taobao."
+    moduleName = "${pluginTypeName.capitalize()} - 指纹支付 AES-256版 - 淘宝"
+    moduleAuthor = "mqmqgo"
+    moduleDescription = "让淘宝支持指纹支付 (AES-256版). eritpchy/FingerprintPay 的非官方修改版, 由 mqmqgo 维护, 无网络功能. Unofficial fork of eritpchy/FingerprintPay maintained by mqmqgo, fingerprint pay for Taobao, no network."
     moduleVersion = "v${project.property("VERSION_NAME")}"
     moduleVersionCode = project.property("VERSION_CODE") as int
     moduleUpdateJson = ""

@@ -1,3 +1,4 @@
+# Modified by mqmqgo, 2026-09-25: https submodule URLs, MQMQgo fork
 [submodule "3rdparty/MagiskModuleTemplate"]
 	path = 3rdparty/MagiskModuleTemplate
 	url = https://github.com/eritpchy/MagiskModuleTemplate.git

@@ -1,3 +1,4 @@
+// Modified by mqmqgo, 2026-09-25: AES-256-GCM Keystore-only encrypt/decrypt, no software fallback
 package com.surcumference.fingerprint.util;
 
 import android.content.Context;

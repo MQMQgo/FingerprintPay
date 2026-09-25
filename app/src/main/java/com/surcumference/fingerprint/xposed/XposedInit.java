@@ -1,3 +1,4 @@
+// Modified by mqmqgo, 2026-09-25: removed MANAGE_USERS permission hook
 package com.surcumference.fingerprint.xposed;
 
 import static com.surcumference.fingerprint.Constant.PACKAGE_NAME_ALIPAY;

@@ -1,3 +1,4 @@
+// Modified by mqmqgo, 2026-09-25: fingerprint fallback to native password, re-entrancy guard, crash-safe pay flow
 package com.surcumference.fingerprint.plugin.impl.wechat;
 
 import static com.surcumference.fingerprint.Constant.PACKAGE_NAME_WECHAT;

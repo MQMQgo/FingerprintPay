@@ -1,3 +1,4 @@
+// Modified by mqmqgo, 2026-09-25: removed Umeng error reporting
 package com.surcumference.fingerprint.util.log.handler;
 
 import com.surcumference.fingerprint.util.log.inf.ILog;

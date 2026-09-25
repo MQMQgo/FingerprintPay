@@ -1,3 +1,4 @@
+<!-- Modified by mqmqgo, 2026-09-25: removed network/phone/storage/install permissions -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 

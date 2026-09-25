@@ -1,4 +1,23 @@
+<!-- Modified by mqmqgo, 2026-09-25: added 7.0.0 entry -->
 # Changelog
+### v7.0.0 (2026-09-25) — AES-256版 (mqmqgo 维护的非官方修改版)
+
+🔒 支付密码只用硬件 Android Keystore 中的 AES-256-GCM 密钥加密 (优先 StrongBox, 否则 TEE; 非硬件密钥直接拒绝), 每次加密和解密都要通过 BIOMETRIC_STRONG 认证; 指纹变更后密钥自动失效
+
+🔒 移除 ECB/ANDROID_ID 软件加密兜底、三星/魅族 SDK 和预认证技巧; 旧密文不迁移, **升级后需要重新输入支付密码**
+
+🌐 移除全部网络代码: 更新检查、友盟统计、网页、okhttp/okgo/gson; 移除网络/电话/存储/安装权限; 模块没有 updateJson
+
+🧹 移除捐赠界面、QQ 群、帮助和官方网站入口, 以及「使用 Biometric API」开关 (「通用设置」的摘要已同步更新)
+
+🛟 任何识别失败或异常都会自动回退到微信原生密码输入 (经典弹窗和 LiteApp 键盘两种模式), 带防重入保护
+
+🆔 新模块 ID `zygisk_fingerprintpay_wechat_aes256`, 名称「指纹支付 AES-256版」, 作者 mqmqgo; 与官方模块不能同时安装
+
+📄 应用内协议改为 GPL-2.0 声明; 新增 NOTICE.md; 模块 zip 附带 GPL-2.0 和 MIT 许可证全文
+
+⚠️ 只在本地编译通过, 未经真机测试; 目标仅为 KernelSU/Zygisk + 微信
+
 ### v6.1.0 (2026-03-07)
 
 🚩 适配 微信 8.0.65+ 设置页面及支付弹窗

@@ -1,3 +1,4 @@
+// Modified by mqmqgo, 2026-09-25: Keystore-only password check, removed telemetry/blacklist calls
 package com.surcumference.fingerprint.plugin.impl.unionpay;
 
 import static com.surcumference.fingerprint.Constant.PACKAGE_NAME_UNIONPAY;

@@ -1,3 +1,4 @@
+// Modified by mqmqgo, 2026-09-25: removed Umeng/updater/blacklist calls
 package com.surcumference.fingerprint.plugin.magisk;
 
 import android.app.Application;

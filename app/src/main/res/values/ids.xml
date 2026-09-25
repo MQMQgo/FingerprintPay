@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Modified by mqmqgo, 2026-09-25: removed donate/update/network strings, added key-invalidated strings -->
 <resources>
     <item name="template" type="id"/>
     <item name="settings_title_license" type="id"/>

@@ -1,3 +1,4 @@
+// Modified by mqmqgo, 2026-09-25: removed network/telemetry dependencies, version 7.0.0
 apply plugin: 'com.android.application'
 
 android {
@@ -7,8 +8,8 @@ android {
         applicationId "com.surcumference.fingerprintpay"
         minSdk 14
         targetSdk 34
-        versionCode 37
-        versionName "6.1.0"
+        versionCode 40
+        versionName "7.0.0"
         buildConfigField "String", "APP_PRODUCT_NAME", "\"FingerprintPay\""
     }
 

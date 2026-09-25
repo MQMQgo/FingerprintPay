@@ -1,3 +1,4 @@
+// Modified by mqmqgo, 2026-09-25: local GPL-2.0 notice, no WebView/network
 package com.surcumference.fingerprint.view;
 
 import android.content.Context;
