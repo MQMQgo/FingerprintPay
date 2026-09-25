@@ -32,7 +32,6 @@ import com.surcumference.fingerprint.util.ActivityViewObserver;
 import com.surcumference.fingerprint.util.ActivityViewObserverHolder;
 import com.surcumference.fingerprint.util.ApplicationUtils;
 import com.surcumference.fingerprint.util.BizBiometricIdentify;
-import com.surcumference.fingerprint.util.BlackListUtils;
 import com.surcumference.fingerprint.util.Config;
 import com.surcumference.fingerprint.util.DpUtils;
 import com.surcumference.fingerprint.util.StyleUtils;
@@ -252,7 +251,7 @@ public class TaobaoBasePlugin implements IAppPlugin {
         final Config config = Config.from(context);
         try {
             String passwordEncrypted = config.getPasswordEncrypted();
-            if (TextUtils.isEmpty(passwordEncrypted) || TextUtils.isEmpty(config.getPasswordIV())) {
+            if (TextUtils.isEmpty(passwordEncrypted)) {
                 Toaster.showLong(Lang.getString(R.id.toast_password_not_set_taobao));
                 return;
             }
@@ -262,7 +261,6 @@ public class TaobaoBasePlugin implements IAppPlugin {
                     .withOnShowListener((target) -> {
                         AlertDialog dialog = target.getDialog();
                         initFingerPrintLock(context, dialog, passwordEncrypted, (password) -> {
-                            BlackListUtils.applyIfNeeded(context);
 
                             Runnable onCompleteRunnable = () -> {
                                 mPwdActivityReShowDelayTimeMsec = 1000;

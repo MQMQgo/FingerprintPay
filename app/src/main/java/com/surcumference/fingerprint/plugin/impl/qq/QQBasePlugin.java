@@ -39,7 +39,6 @@ import com.surcumference.fingerprint.util.Config;
 import com.surcumference.fingerprint.util.DpUtils;
 import com.surcumference.fingerprint.util.ImageUtils;
 import com.surcumference.fingerprint.util.KeyboardUtils;
-import com.surcumference.fingerprint.util.QQUtils;
 import com.surcumference.fingerprint.util.StyleUtils;
 import com.surcumference.fingerprint.util.Task;
 import com.surcumference.fingerprint.util.ViewUtils;
@@ -115,7 +114,6 @@ public class QQBasePlugin implements IAppPlugin, IMockCurrentUser {
                 L.d("activity", activity, "clz", activityClzName);
             }
             if (activityClzName.contains(".SplashActivity")) {
-                QQUtils.checkBlackListQQ(activity);
             }
             if (activityClzName.contains(".QWalletPluginProxyActivity")
                 || activityClzName.contains(".QWalletToolFragmentActivity")) {
@@ -230,7 +228,7 @@ public class QQBasePlugin implements IAppPlugin, IMockCurrentUser {
         Context context = activity;
         Config config = Config.from(context);
         String passwordEncrypted = config.getPasswordEncrypted();
-        if (TextUtils.isEmpty(passwordEncrypted) || TextUtils.isEmpty(config.getPasswordIV()) ) {
+        if (TextUtils.isEmpty(passwordEncrypted)) {
             Toaster.showLong(Lang.getString(R.id.toast_password_not_set_qq));
             return;
         }

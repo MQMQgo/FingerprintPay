@@ -27,10 +27,6 @@ android {
         }
     }
 
-    packagingOptions {
-        exclude '**/publicsuffixes.gz'
-    }
-
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
         targetCompatibility JavaVersion.VERSION_1_8
@@ -61,15 +57,10 @@ project.ext.appInfo = [
 project.ext.moduleFrameworks = ['riru', 'zygisk']
 
 apply from: 'debug.gradle'
-apply from: 'update-json.gradle'
 dependencies {
     implementation project(":3rdparty:FingerprintIdentify:FingerprintIdentifyLib")
-    implementation 'com.google.code.gson:gson:2.8.6'
-    implementation 'com.squareup.okhttp3:okhttp:3.12.8'
-    implementation 'com.umeng.analytics:analytics:6.1.2'
     implementation 'com.crossbowffs.remotepreferences:remotepreferences:0.5'
     implementation 'com.github.AndroidDeveloperLB:MaterialPreferenceLibrary:10'
-    implementation 'com.lzy.net:okgo:3.0.4'
     implementation 'com.github.getActivity:Toaster:12.6'
     compileOnly 'de.robv.android.xposed:api:53'
 }

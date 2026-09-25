@@ -4,6 +4,10 @@
 # FingerprintPay
 让微信、支付宝、淘宝、腾讯QQ、云闪付在支持指纹识别的手机上使用指纹支付.
 
+> **hardened-local 分支 (本 fork)**: 仅面向 KernelSU/Zygisk + 微信. 已移除全部网络代码 (更新检查/统计/网页), 捐赠界面与 QQ 群入口;
+> 支付密码只用硬件 Android Keystore 中的 AES-256-GCM 密钥加密, 每次加解密都必须通过 BIOMETRIC_STRONG 生物识别;
+> 任何失败都会自动回退到微信原生密码输入. 安装后需重新设置支付密码 (旧密文不迁移).
+
 ## 请注意: 支付宝支持刷脸支付, 体验感官跟苹果的Face ID差不多, 请考虑优先使用
 
 ## 最低要求
@@ -94,7 +98,7 @@
 * [LSPosed](https://github.com/LSPosed/LSPosed)
 
 ## 提示
-1. 本软件的网络功能仅限检查自己软件更新功能, 如不放心, 欢迎REVIEW代码.
+1. 本分支不包含任何网络功能.
 2. 支付宝、淘宝、微信、QQ、云闪付支持版本请参考镜像站的适配版本, 随意升级新版本可能不兼容
 3. 自4.7.4版本开始, 为减少打扰, 非紧急更新暂缓推送
 4. Magisk Delta + Zygisk Next 组合 截止2023年11月8日目前这两软件尚未互相适配, 切勿尝试!
@@ -104,6 +108,3 @@
 8. 目前已知人脸出现的概率会随着你的设备的风控等级升高而增加, 比如启用了LSPosed而没对指定应用加入排除列表
 9. 由于本人主用APatch进行开发测试, 因此优先推荐使用APatch, KSU相关问题只能延后处理, 或者看社区有没有解决方案, 理论上他们都是同一个东西
 
-<img src="./doc/qq_group.jpg" alt="QQ交流群: [665167891]" width="500">
-
-#### QQ交流群: [665167891](https://h5.qun.qq.com/h5/qun-share-page/?_wv=1027&k=fCZf_WEKL1Rj_N0gi9JgkH7bfnKj11Wy&authKey=acNcoIs325Uco7v2JZY4NObRFA3sJU%2FWI1%2FH64DkP50cn6HBRUzBZ9cvZGNqmzGi&market_channel_source=665167891_1&noverify=0&group_code=665167891)

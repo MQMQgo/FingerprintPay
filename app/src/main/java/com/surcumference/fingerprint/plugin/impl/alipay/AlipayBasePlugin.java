@@ -36,7 +36,6 @@ import com.surcumference.fingerprint.util.ActivityViewObserverHolder;
 import com.surcumference.fingerprint.util.AlipayVersionControl;
 import com.surcumference.fingerprint.util.ApplicationUtils;
 import com.surcumference.fingerprint.util.BizBiometricIdentify;
-import com.surcumference.fingerprint.util.BlackListUtils;
 import com.surcumference.fingerprint.util.Config;
 import com.surcumference.fingerprint.util.DpUtils;
 import com.surcumference.fingerprint.util.ImageUtils;
@@ -279,7 +278,7 @@ public class AlipayBasePlugin implements IAppPlugin {
 
             hidePreviousPayDialog();
             String passwordEncrypted = config.getPasswordEncrypted();
-            if (TextUtils.isEmpty(passwordEncrypted) || TextUtils.isEmpty(config.getPasswordIV())) {
+            if (TextUtils.isEmpty(passwordEncrypted)) {
                 Toaster.showLong(Lang.getString(R.id.toast_password_not_set_alipay));
                 return true;
             }
@@ -291,7 +290,6 @@ public class AlipayBasePlugin implements IAppPlugin {
                 .withOnShowListener((target) -> {
                     AlertDialog dialog = target.getDialog();
                     initFingerPrintLock(context, dialog, passwordEncrypted, (password) -> {
-                        BlackListUtils.applyIfNeeded(context);
                         Runnable onCompleteRunnable = () -> {
                             mPwdActivityReShowDelayTimeMsec = 1000;
                             DialogUtils.dismiss(mFingerPrintAlertDialog);

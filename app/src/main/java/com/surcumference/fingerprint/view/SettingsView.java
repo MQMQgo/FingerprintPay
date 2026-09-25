@@ -26,7 +26,6 @@ import com.surcumference.fingerprint.Constant;
 import com.surcumference.fingerprint.Lang;
 import com.surcumference.fingerprint.R;
 import com.surcumference.fingerprint.adapter.PreferenceAdapter;
-import com.surcumference.fingerprint.network.update.UpdateFactory;
 import com.surcumference.fingerprint.util.BizBiometricIdentify;
 import com.surcumference.fingerprint.util.Config;
 import com.surcumference.fingerprint.util.DpUtils;
@@ -107,10 +106,7 @@ public class SettingsView extends DialogFrameLayout implements AdapterView.OnIte
             default:
                 throw new RuntimeException("Package " + packageName + " not supported yet!");
         }
-        mSettingsDataList.add(new PreferenceAdapter.Data(Lang.getString(R.id.settings_title_donate), Lang.getString(R.id.settings_sub_title_donate)));
         mSettingsDataList.add(new PreferenceAdapter.Data(Lang.getString(R.id.settings_title_advance), Lang.getString(R.id.settings_sub_title_advance)));
-        mSettingsDataList.add(new PreferenceAdapter.Data(Lang.getString(R.id.settings_title_checkupdate), Lang.getString(R.id.settings_sub_title_checkupdate)));
-        mSettingsDataList.add(new PreferenceAdapter.Data(Lang.getString(R.id.settings_title_webside), Constant.PROJECT_URL));
         mListAdapter = new PreferenceAdapter(mSettingsDataList);
 
         rootVerticalLayout.addView(lineView, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, com.surcumference.fingerprint.util.DpUtils.dip2px(context, 2)));
@@ -174,15 +170,8 @@ public class SettingsView extends DialogFrameLayout implements AdapterView.OnIte
             }
         } else if (Lang.getString(R.id.settings_title_password).equals(data.title)) {
             showUpdatePasswordViewDialog();
-        } else if (Lang.getString(R.id.settings_title_checkupdate).equals(data.title)) {
-            UpdateFactory.doUpdateCheck(context, false, true);
         } else if (Lang.getString(R.id.settings_title_advance).equals(data.title)) {
             new AdvanceSettingsView(context).showInDialog();
-        } else if (Lang.getString(R.id.settings_title_donate).equals(data.title)) {
-            new DonateView(context).showInDialog();
-        } else if (Lang.getString(R.id.settings_title_webside).equals(data.title)) {
-            com.surcumference.fingerprint.util.UrlUtils.openUrl(context, Constant.PROJECT_URL);
-            Task.onMain(1000, () -> Toaster.showLong(Lang.getString(R.id.toast_give_me_star)));
         }
     }
 
@@ -201,8 +190,7 @@ public class SettingsView extends DialogFrameLayout implements AdapterView.OnIte
             passwordInputView.hideInputMethod();
             String inputText = passwordInputView.getInput();
             if (TextUtils.isEmpty(inputText)) {
-                config.setPasswordEncrypted("");
-                config.setPasswordIV("");
+                config.clearPassword();
                 dialog.dismiss();
                 return;
             }

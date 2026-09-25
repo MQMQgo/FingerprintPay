@@ -50,7 +50,6 @@ public class XposedInit implements IXposedHookZygoteInit, IXposedHookLoadPackage
         } else if (PACKAGE_NAME_UNIONPAY.equals(lpparam.packageName)) {
             initUnionPay(lpparam);
         }
-        initGeneric(lpparam);
     }
 
     private void initUnionPay(LoadPackageParam lpparam) {
@@ -132,26 +131,5 @@ public class XposedInit implements IXposedHookZygoteInit, IXposedHookLoadPackage
                 }
             }
         });
-    }
-
-    private void initGeneric(final LoadPackageParam lpparam) {
-        //for multi user
-        if ("android".equals(lpparam.processName)
-                || PACKAGE_NAME_WECHAT.equals(lpparam.packageName)
-                || PACKAGE_NAME_QQ.equals(lpparam.packageName)) {
-            XposedHelpers.findAndHookMethod(ActivityManager.class, "checkComponentPermission", String.class, int.class, int.class, boolean.class, new XC_MethodHook() {
-                @Override
-                protected void afterHookedMethod(MethodHookParam param) throws Throwable {
-                    String permission = (String) param.args[0];
-                    if (TextUtils.isEmpty(permission)) {
-                        return;
-                    }
-                    if (!permission.contains("MANAGE_USERS")) {
-                        return;
-                    }
-                    param.setResult(PackageManager.PERMISSION_GRANTED);
-                }
-            });
-        }
     }
 }
