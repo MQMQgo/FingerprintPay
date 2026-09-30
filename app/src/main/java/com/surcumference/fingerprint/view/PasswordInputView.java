@@ -1,4 +1,5 @@
 // Modified by mqmqgo, 2026-09-25: password read as char[] via Editable.getChars, Editable cleared after use/dismiss
+// Modified by mqmqgo, 2026-09-30: first edit replaces the placeholder instead of mixing into it; isNumericInput()
 package com.surcumference.fingerprint.view;
 
 import android.app.AlertDialog;
@@ -7,6 +8,7 @@ import android.content.DialogInterface;
 import android.graphics.Color;
 import android.text.Editable;
 import android.text.InputType;
+import android.text.TextWatcher;
 import android.text.method.HideReturnsTransformationMethod;
 import android.util.AttributeSet;
 import android.view.View;
@@ -33,6 +35,10 @@ public class PasswordInputView extends DialogFrameLayout {
     public static final String DEFAULT_HIDDEN_PASS = "123zxc456asdxxx";
 
     private EditText mInputView;
+    /** True while the field still shows the untouched placeholder set by {@link #setDefaultText}. */
+    private boolean mDefaultTextShowing;
+    private int mEditStart;
+    private int mEditCount;
 
     public PasswordInputView(@NonNull Context context) {
         super(context);
@@ -74,6 +80,31 @@ public class PasswordInputView extends DialogFrameLayout {
                     | InputType.TYPE_NUMBER_VARIATION_PASSWORD
             );
         }
+        // The first edit of the placeholder replaces it: keep only what was just typed (a
+        // backspace empties the field), so the placeholder never ends up in the new password.
+        mInputView.addTextChangedListener(new TextWatcher() {
+            @Override
+            public void beforeTextChanged(CharSequence s, int start, int count, int after) {
+            }
+
+            @Override
+            public void onTextChanged(CharSequence s, int start, int before, int count) {
+                mEditStart = start;
+                mEditCount = count;
+            }
+
+            @Override
+            public void afterTextChanged(Editable s) {
+                if (!mDefaultTextShowing) {
+                    return;
+                }
+                mDefaultTextShowing = false;
+                int end = Math.min(mEditStart + mEditCount, s.length());
+                int start = Math.min(mEditStart, end);
+                s.delete(end, s.length());
+                s.delete(0, start);
+            }
+        });
 
         LinearLayout.LayoutParams layoutParam = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         int defHMargin = DpUtils.dip2px(context, 15);
@@ -111,7 +142,13 @@ public class PasswordInputView extends DialogFrameLayout {
 
     /** Overwrites and clears the password Editable. */
     public void clearInput() {
+        mDefaultTextShowing = false;
         SecureChars.clear(mInputView.getText());
+    }
+
+    /** True if the field uses the numeric (digits only) input type, i.e. not Alipay/Taobao/QQ. */
+    public boolean isNumericInput() {
+        return (mInputView.getInputType() & InputType.TYPE_MASK_CLASS) == InputType.TYPE_CLASS_NUMBER;
     }
 
     @Override
@@ -121,9 +158,11 @@ public class PasswordInputView extends DialogFrameLayout {
     }
 
     public void setDefaultText(String text) {
+        mDefaultTextShowing = false;
         mInputView.setText(text);
         int len = text.length();
         mInputView.setSelection(len, len);
+        mDefaultTextShowing = true;
     }
 
     @Override

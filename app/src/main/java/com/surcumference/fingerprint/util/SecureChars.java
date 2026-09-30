@@ -1,4 +1,5 @@
 // Added by mqmqgo, 2026-09-25: helpers keeping the payment password in wipeable char[]/byte[] only
+// Modified by mqmqgo, 2026-09-30: full-width digit normalization, ASCII digit check, safe char category for diagnostics
 package com.surcumference.fingerprint.util;
 
 import android.text.Editable;
@@ -128,5 +129,51 @@ public final class SecureChars {
     /** '0'..'9' -> 0..9, otherwise -1. */
     public static int digitIndex(char c) {
         return (c >= '0' && c <= '9') ? c - '0' : -1;
+    }
+
+    /** Full-width digits U+FF10..U+FF19 ('０'..'９', e.g. from a Chinese IME) -> ASCII '0'..'9', in place. */
+    public static void normalizeFullWidthDigits(@Nullable char[] chars) {
+        if (chars == null) {
+            return;
+        }
+        for (int i = 0; i < chars.length; i++) {
+            char c = chars[i];
+            if (c >= '\uFF10' && c <= '\uFF19') {
+                chars[i] = (char) ('0' + (c - '\uFF10'));
+            }
+        }
+    }
+
+    /** True if chars is non-empty and every char is an ASCII digit '0'..'9'. */
+    public static boolean isAllAsciiDigits(@Nullable char[] chars) {
+        if (chars == null || chars.length == 0) {
+            return false;
+        }
+        for (char c : chars) {
+            if (digitIndex(c) < 0) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Coarse category of a char, for diagnostics only: "digit", "nul", "whitespace", "letter" or
+     * "other". Log this instead of the char or its code point.
+     */
+    public static String category(char c) {
+        if (digitIndex(c) >= 0) {
+            return "digit";
+        }
+        if (c == '\0') {
+            return "nul";
+        }
+        if (Character.isWhitespace(c) || Character.isSpaceChar(c)) {
+            return "whitespace";
+        }
+        if (Character.isLetter(c)) {
+            return "letter";
+        }
+        return "other";
     }
 }

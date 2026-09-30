@@ -1,4 +1,5 @@
 // Modified by mqmqgo, 2026-09-25: removed donate/update/network strings, added key-invalidated strings
+// Modified by mqmqgo, 2026-09-30: added digits-only password string
 package com.surcumference.fingerprint;
 
 import java.util.Locale;
@@ -158,6 +159,8 @@ public class Lang {
                 return tr("启用失败, 请先设定支付密码", "啟用失敗, 請先設定支付密碼", "Enabled failed, please set a payment password first");
             case R.id.toast_password_auto_enter_fail:
                 return tr("Oops.. 输入失败了. 请手动输入密码", "Oops.. 輸入失敗了. 請手動輸入密碼", "Oops... auto input failure, switch to manual input");
+            case R.id.toast_password_digits_only:
+                return tr("密码只能包含数字，输入框已清空，请重新输入支付密码", "密碼只能包含數字，輸入框已清空，請重新輸入支付密碼", "The password may only contain digits. The input field has been cleared, please enter your payment password again");
             case R.id.toast_need_qq_7_2_5:
                 return tr("您的QQ版本过低, 不支持指纹功能, 请升级至7.2.5以上的版本", "您的QQ版本過低, 不支持指紋功能, 請升級至7.2.5以上的版本", "Your QQ version is too low, does not support the fingerprint function, please upgrade to version 7.2.5 and above");
             case R.id.toast_start_logging:

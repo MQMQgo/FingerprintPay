@@ -1,4 +1,5 @@
 // Modified by mqmqgo, 2026-09-25: fingerprint fallback to native password, re-entrancy guard, crash-safe pay flow, password only in wiped char[]
+// Modified by mqmqgo, 2026-09-30: normalize full-width digits before auto input, safe diagnostic for unsupported chars
 package com.surcumference.fingerprint.plugin.impl.wechat;
 
 import static com.surcumference.fingerprint.Constant.PACKAGE_NAME_WECHAT;
@@ -776,6 +777,8 @@ public class WeChatBasePlugin implements IAppPlugin, IMockCurrentUser {
         // Taps are asynchronous: keep our own copy (pwd is wiped when the decrypt callback returns),
         // read one char per step straight from the array (no per-digit captures / Strings), wipe at the end.
         final PendingSecretInput pending = startPendingSecretInput(pwd);
+        // passwords saved before 7.0.2 may contain full-width digits (Chinese IME)
+        SecureChars.normalizeFullWidthDigits(pending.chars);
         final Handler handler = new Handler(Looper.getMainLooper());
         final Random random = new Random();
         final String packageName = context.getPackageName();
@@ -789,7 +792,10 @@ public class WeChatBasePlugin implements IAppPlugin, IMockCurrentUser {
                 }
                 String[] keyIds = digitPasswordKeyPad.keyIdsForDigit(chars[index[0]]);
                 if (keyIds == null) {
-                    // never include password characters in messages / logs
+                    // never include password characters (or code points) in messages / logs:
+                    // position, length and a coarse category only
+                    L.e("inputDigitalPasswordByTouch: unsupported password char", "index=" + index[0],
+                            "length=" + chars.length, "category=" + SecureChars.category(chars[index[0]]));
                     throw new IllegalArgumentException("Password contains an unsupported character");
                 }
                 View digitView = ViewUtils.findViewByName(keyboardParent, packageName, keyIds);
@@ -1144,6 +1150,8 @@ public class WeChatBasePlugin implements IAppPlugin, IMockCurrentUser {
             keyboardViewParams.height = 2;
             inputEditText.requestFocus();
             final PendingSecretInput pending = startPendingSecretInput(pwd);
+            // passwords saved before 7.0.2 may contain full-width digits (Chinese IME)
+            SecureChars.normalizeFullWidthDigits(pending.chars);
             inputEditText.post(() -> {
               try {
                 char[] chars = pending.chars;

@@ -1,4 +1,5 @@
 // Modified by mqmqgo, 2026-09-25: removed network/update/donate/QQ-group items and Biometric API toggle; password handled as wiped char[]
+// Modified by mqmqgo, 2026-09-30: numeric passwords: normalize full-width digits, refuse to save anything but ASCII digits
 package com.surcumference.fingerprint.view;
 
 import static com.surcumference.fingerprint.view.PasswordInputView.DEFAULT_HIDDEN_PASS;
@@ -201,6 +202,16 @@ public class SettingsView extends DialogFrameLayout implements AdapterView.OnIte
                 if (SecureChars.contentEquals(input, DEFAULT_HIDDEN_PASS)) {
                     dialog.dismiss();
                     return;
+                }
+                if (passwordInputView.isNumericInput()) {
+                    // e.g. full-width digits from a Chinese IME; the digit keypad only has '0'..'9'
+                    SecureChars.normalizeFullWidthDigits(input);
+                    if (!SecureChars.isAllAsciiDigits(input)) {
+                        // not saved; dialog stays open for a new attempt, input wiped in finally
+                        passwordInputView.clearInput();
+                        Toaster.showLong(Lang.getString(R.id.toast_password_digits_only));
+                        return;
+                    }
                 }
                 passwordInputView.clearInput();
                 // encryptPasscode takes its own copy synchronously
