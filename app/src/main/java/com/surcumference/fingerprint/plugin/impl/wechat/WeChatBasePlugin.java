@@ -779,6 +779,15 @@ public class WeChatBasePlugin implements IAppPlugin, IMockCurrentUser {
         final PendingSecretInput pending = startPendingSecretInput(pwd);
         // passwords saved before 7.0.2 may contain full-width digits (Chinese IME)
         SecureChars.normalizeFullWidthDigits(pending.chars);
+        // validate everything before the first tap: never enter a partial password
+        for (int i = 0; i < pending.chars.length; i++) {
+            if (digitPasswordKeyPad.keyIdsForDigit(pending.chars[i]) == null) {
+                L.e("inputDigitalPasswordByTouch: unsupported password char", "index=" + i,
+                        "length=" + pending.chars.length, "category=" + SecureChars.category(pending.chars[i]));
+                finishPendingSecretInput(pending);
+                throw new IllegalArgumentException("Password contains an unsupported character");
+            }
+        }
         final Handler handler = new Handler(Looper.getMainLooper());
         final Random random = new Random();
         final String packageName = context.getPackageName();
@@ -1164,11 +1173,16 @@ public class WeChatBasePlugin implements IAppPlugin, IMockCurrentUser {
                 if (digitPasswordKeyPad == null) {
                     throw new NullPointerException("keyPadInfo is null");
                 }
+                // validate everything before the first click: never enter a partial / wrong password
+                for (int i = 0; i < chars.length; i++) {
+                    if (digitPasswordKeyPad.keyIdsForDigit(chars[i]) == null) {
+                        L.e("inputDigitalPassword: unsupported password char", "index=" + i,
+                                "length=" + chars.length, "category=" + SecureChars.category(chars[i]));
+                        throw new IllegalArgumentException("Password contains an unsupported character");
+                    }
+                }
                 for (int i = 0; i < chars.length; i++) {
                     String[] keyIds = digitPasswordKeyPad.keyIdsForDigit(chars[i]);
-                    if (keyIds == null) {
-                        continue;
-                    }
                     View digitView = ViewUtils.findViewByName(keyboardView, context.getPackageName(), keyIds);
                     if (digitView != null) {
                         ViewUtils.performActionClick(digitView);
