@@ -66,6 +66,7 @@
     <item name="toast_password_not_set_switch_on_failed" type="id"/>
     <item name="toast_password_auto_enter_fail" type="id"/>
     <item name="toast_password_digits_only" type="id"/>
+    <item name="toast_stored_password_corrupted" type="id"/>
     <item name="toast_need_qq_7_2_5" type="id"/>
     <item name="toast_start_logging" type="id"/>
     <item name="toast_stop_logging" type="id"/>

@@ -152,8 +152,10 @@ public class XBiometricIdentify<T extends XBiometricIdentify>{
                             throw new IllegalStateException("authenticated cipher missing");
                         }
                         if (cipherMode == Cipher.ENCRYPT_MODE) {
+                            // take ownership of the array; do NOT wipe it before encrypting
+                            // (7.0.1/7.0.2 wiped this very array here, so only NUL chars got encrypted)
                             char[] plain = plainText;
-                            wipePlainText();
+                            plainText = null;
                             if (plain == null) {
                                 throw new IllegalStateException("nothing to encrypt");
                             }
@@ -182,6 +184,10 @@ public class XBiometricIdentify<T extends XBiometricIdentify>{
                                 int n = cipher.doFinal(cipherBytes, 0, cipherBytes.length, pt, 0);
                                 decrypted = SecureChars.decodeUtf8(pt, 0, n);
                                 SecureChars.wipe(pt);
+                                if (SecureChars.isEmptyOrAllNul(decrypted)) {
+                                    // written by the 7.0.1/7.0.2 encryption bug: nothing usable was stored
+                                    throw new StoredPasswordCorruptedException();
+                                }
                                 // the array is only valid during this call; listeners needing it later must clone it
                                 identifyListener.onDecryptionSuccess(XBiometricIdentify.this, decrypted);
                             } finally {
@@ -191,9 +197,15 @@ public class XBiometricIdentify<T extends XBiometricIdentify>{
                         }
                     } catch (Throwable t) {
                         // never log plaintext/ciphertext, only the exception type
-                        L.e("XBiometricIdentify: cipher operation failed", t.getClass().getName());
+                        // exception messages from Keystore only carry error codes, never key material
+                        Throwable cause = t.getCause();
+                        L.e("XBiometricIdentify: cipher operation failed", t.getClass().getName(), String.valueOf(t.getMessage()),
+                                cause == null ? "" : cause.getClass().getName() + ": " + cause.getMessage());
                         FingerprintIdentifyFailInfo failInfo = new FingerprintIdentifyFailInfo(false, t);
-                        if (cipherMode == Cipher.DECRYPT_MODE && t instanceof AEADBadTagException) {
+                        if (cipherMode == Cipher.DECRYPT_MODE && t instanceof StoredPasswordCorruptedException) {
+                            failInfo.keyInvalidated = true;
+                            onNotify(NotifyEnum.OnStoredPasswordCorrupted);
+                        } else if (cipherMode == Cipher.DECRYPT_MODE && t instanceof AEADBadTagException) {
                             // ciphertext does not belong to this key any more: discard it
                             failInfo.keyInvalidated = true;
                             onNotify(NotifyEnum.OnKeyInvalidated);
@@ -362,7 +374,15 @@ public class XBiometricIdentify<T extends XBiometricIdentify>{
         OnBiometricNotMatch,
         OnBiometricNotSupported,
         OnKeyInvalidated,
+        OnStoredPasswordCorrupted,
         OnEncryptionFailed,
     }
 
+
+    /** Decrypted content is empty / all NUL: the stored password is unusable and must be set again. */
+    static final class StoredPasswordCorruptedException extends Exception {
+        StoredPasswordCorruptedException() {
+            super("stored password is empty");
+        }
+    }
 }

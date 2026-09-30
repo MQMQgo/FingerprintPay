@@ -100,6 +100,9 @@ public class BizBiometricIdentify extends XBiometricIdentify<BizBiometricIdentif
             case OnKeyInvalidated:
                 Toaster.showLong(Lang.getString(R.id.toast_fingerprint_key_invalidated));
                 break;
+            case OnStoredPasswordCorrupted:
+                Toaster.showLong(Lang.getString(R.id.toast_stored_password_corrupted));
+                break;
             case OnEncryptionFailed:
                 NotifyUtils.notifyBiometricIdentify(this.context, Lang.getString(R.id.toast_fingerprint_password_enc_failed));
                 break;

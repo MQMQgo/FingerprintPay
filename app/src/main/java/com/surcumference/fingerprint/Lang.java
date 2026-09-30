@@ -159,6 +159,8 @@ public class Lang {
                 return tr("启用失败, 请先设定支付密码", "啟用失敗, 請先設定支付密碼", "Enabled failed, please set a payment password first");
             case R.id.toast_password_auto_enter_fail:
                 return tr("Oops.. 输入失败了. 请手动输入密码", "Oops.. 輸入失敗了. 請手動輸入密碼", "Oops... auto input failure, switch to manual input");
+            case R.id.toast_stored_password_corrupted:
+                return tr("保存的支付密码无效 (7.0.1/7.0.2 保存时的错误), 已清除, 请在设置中重新设置支付密码", "保存的支付密碼無效 (7.0.1/7.0.2 保存時的錯誤), 已清除, 請在設置中重新設置支付密碼", "The saved payment password is invalid (a saving bug in 7.0.1/7.0.2) and was cleared, please set it again in settings");
             case R.id.toast_password_digits_only:
                 return tr("密码只能包含数字，输入框已清空，请重新输入支付密码", "密碼只能包含數字，輸入框已清空，請重新輸入支付密碼", "The password may only contain digits. The input field has been cleared, please enter your payment password again");
             case R.id.toast_need_qq_7_2_5:

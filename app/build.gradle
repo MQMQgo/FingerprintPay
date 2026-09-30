@@ -1,5 +1,5 @@
 // Modified by mqmqgo, 2026-09-25: removed network/telemetry dependencies, version 7.0.1
-// Modified by mqmqgo, 2026-09-30: version 7.0.2
+// Modified by mqmqgo, 2026-09-30: version 7.0.3
 apply plugin: 'com.android.application'
 
 android {
@@ -9,8 +9,8 @@ android {
         applicationId "com.surcumference.fingerprintpay"
         minSdk 14
         targetSdk 34
-        versionCode 42
-        versionName "7.0.2"
+        versionCode 43
+        versionName "7.0.3"
         buildConfigField "String", "APP_PRODUCT_NAME", "\"FingerprintPay\""
     }
 

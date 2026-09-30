@@ -24,6 +24,7 @@
 4. 任何失败都会自动回退到微信原生密码输入, 带防重入保护; 支付流程入口有异常保护.
 5. 新的模块 ID、名称、作者和版本 (7.0.0 / 40); 更换应用内协议为 GPL-2.0 声明; 在修改过的源文件顶部添加修改声明.
 6. (2026-09-25, v7.0.1) 明文支付密码全程只保存在 char[]/byte[] 中, 不创建 String; 使用后 (或中止时) 立即擦除; 设置密码时输入框在使用后清空. 移除依赖上游密钥或外部上传 (WebDAV/gitee) 的 GitHub Actions 工作流.
+8. (2026-09-30, v7.0.3) 修复设置密码时加密前误擦除 (7.0.1 引入); 检测并清除无效的已保存密码; 加解密失败时记录 Keystore 错误信息.
 7. (2026-09-30, v7.0.2) 数字支付密码: 全角数字转换为 ASCII 数字, 拒绝保存含其它字符的密码; 占位符不再混入新密码; 自动输入失败时只记录位置/长度/类别等安全诊断信息.
 
 ### 源代码
@@ -42,6 +43,7 @@ It is maintained by mqmqgo and is **not affiliated with or supported by the orig
 - Third-party: FingerprintIdentify (MIT, Copyright (c) 2017 Awei, **modified**); MagiskModuleTemplate (MIT, Copyright (c) 2020 Rikka).
 - Main changes (2026-09-25, v7.0.0): all network code removed; donate UI removed; the payment password is encrypted only with a hardware-backed, biometric-bound (BIOMETRIC_STRONG) AES-256-GCM Android Keystore key; any failure falls back to the app's native password input; new module id `zygisk_fingerprintpay_wechat_aes256`.
 - v7.0.1 (2026-09-25): the decrypted password is kept only in char[]/byte[] (never a String) and wiped right after use or on abort; the password input field is cleared after setup.
+- v7.0.3 (2026-09-30): fixed the password being wiped before encryption (bug introduced in 7.0.1); corrupted stored passwords are detected, cleared and the user is asked to set it again; Keystore error details are logged on cipher failure.
 - v7.0.2 (2026-09-30): numeric passwords: full-width digits are normalized to ASCII, anything else is refused on save; the placeholder no longer mixes into a new password; only safe diagnostics (index/length/category) are logged on auto-input failure.
 - Source code: https://github.com/MQMQgo/FingerprintPay
 - **NO WARRANTY.** This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License v2 for details.

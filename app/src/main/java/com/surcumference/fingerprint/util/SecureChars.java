@@ -126,6 +126,19 @@ public final class SecureChars {
         }
     }
 
+    /** True for null, empty or all-'\0' content. */
+    public static boolean isEmptyOrAllNul(@Nullable char[] chars) {
+        if (chars == null) {
+            return true;
+        }
+        for (char c : chars) {
+            if (c != '\0') {
+                return false;
+            }
+        }
+        return true;
+    }
+
     /** '0'..'9' -> 0..9, otherwise -1. */
     public static int digitIndex(char c) {
         return (c >= '0' && c <= '9') ? c - '0' : -1;
